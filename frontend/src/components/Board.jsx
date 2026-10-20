@@ -1,7 +1,7 @@
 import Column from './Column'
 import { STATUSES } from './statuses'
 
-function Board({ tasks, onStatusChange }) {
+function Board({ tasks, ...handlers }) {
   return (
     <div className="board">
       {STATUSES.map(({ status, label }) => (
@@ -9,7 +9,7 @@ function Board({ tasks, onStatusChange }) {
           key={status}
           label={label}
           tasks={tasks.filter((task) => task.status === status)}
-          onStatusChange={onStatusChange}
+          {...handlers}
         />
       ))}
     </div>

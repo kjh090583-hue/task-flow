@@ -72,3 +72,21 @@ def update_status(task_id: int, status: str) -> dict | None:
             return None
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     return dict(row)
+
+
+def update_task(task_id: int, title: str, description: str) -> dict | None:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE tasks SET title = ?, description = ?, updated_at = ? WHERE id = ?",
+            (title, description, _now(), task_id),
+        )
+        if cursor.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    return dict(row)
+
+
+def delete_task(task_id: int) -> bool:
+    with _connect() as conn:
+        cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    return cursor.rowcount > 0

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createTask, getTasks, updateStatus } from './api'
+import { createTask, deleteTask, getTasks, updateStatus, updateTask } from './api'
 import Board from './components/Board'
 import TaskForm from './components/TaskForm'
 
@@ -20,10 +20,26 @@ function App() {
   }
 
   // 성공 응답을 받은 뒤에만 카드의 상태를 바꾼다. 카드가 없으면(404) 목록을 다시 불러온다. (D-005)
-  async function handleStatusChange(id, status) {
+  async function changeTask(id, request) {
     try {
-      const updated = await updateStatus(id, status)
+      const updated = await request()
       setTasks((current) => current.map((task) => (task.id === id ? updated : task)))
+    } catch (error) {
+      if (error.message.endsWith('404')) {
+        setTasks(await getTasks())
+      }
+      throw error
+    }
+  }
+
+  const handleStatusChange = (id, status) => changeTask(id, () => updateStatus(id, status))
+  const handleUpdate = (id, input) => changeTask(id, () => updateTask(id, input))
+
+  // 삭제도 성공 응답 뒤에 화면에서 없앤다. 이미 지운 카드(404)면 목록을 다시 불러온다. (D-005)
+  async function handleDelete(id) {
+    try {
+      await deleteTask(id)
+      setTasks((current) => current.filter((task) => task.id !== id))
     } catch (error) {
       if (error.message.endsWith('404')) {
         setTasks(await getTasks())
@@ -36,7 +52,12 @@ function App() {
     <main>
       <h1>task-flow</h1>
       <TaskForm onCreate={handleCreate} />
-      {loadError ? <p role="alert">목록을 불러오지 못했습니다: {loadError}</p> : <Board tasks={tasks} onStatusChange={handleStatusChange} />}
+      {loadError ? <p role="alert">목록을 불러오지 못했습니다: {loadError}</p> : <Board
+          tasks={tasks}
+          onStatusChange={handleStatusChange}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+        />}
     </main>
   )
 }

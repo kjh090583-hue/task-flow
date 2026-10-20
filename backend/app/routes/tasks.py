@@ -37,3 +37,24 @@ def update_status(task_id: int, body: StatusUpdate):
     if task is None:
         raise HTTPException(status_code=404, detail="대상 카드가 없습니다")
     return task
+
+
+@router.patch("/{task_id}", response_model=Task)
+def update_task(task_id: int, body: TaskCreate):
+    try:
+        task = db.update_task(task_id, body.title, body.description)
+    except sqlite3.Error:
+        raise _storage_error()
+    if task is None:
+        raise HTTPException(status_code=404, detail="대상 카드가 없습니다")
+    return task
+
+
+@router.delete("/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    try:
+        deleted = db.delete_task(task_id)
+    except sqlite3.Error:
+        raise _storage_error()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="대상 카드가 없습니다")

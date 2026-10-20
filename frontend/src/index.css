@@ -156,3 +156,29 @@ code {
   border-radius: 6px;
   padding: 8px;
 }
+
+.card {
+  display: grid;
+  gap: 6px;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  padding: 6px;
+  font: inherit;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card [role='alert'] {
+  color: #c0392b;
+}

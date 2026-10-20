@@ -37,3 +37,15 @@ export function updateStatus(id, status) {
     body: JSON.stringify({ status }),
   })
 }
+
+export function updateTask(id, { title, description }) {
+  return request(`/tasks/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description }),
+  })
+}
+
+export function deleteTask(id) {
+  return request(`/tasks/${id}`, { method: 'DELETE' })
+}
