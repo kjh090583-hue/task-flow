@@ -182,3 +182,11 @@ code {
 .card [role='alert'] {
   color: #c0392b;
 }
+
+.notice {
+  padding: 0 16px 16px;
+}
+
+.notice[role='alert'] {
+  color: #c0392b;
+}

@@ -6,12 +6,23 @@ import TaskForm from './components/TaskForm'
 function App() {
   const [tasks, setTasks] = useState([])
   const [loadError, setLoadError] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // 목록 실패는 빈 목록처럼 보이지 않게 따로 알리고, 다시 시도로 이 함수를 다시 부른다.
+  function fetchTasks() {
     getTasks()
       .then(setTasks)
       .catch((error) => setLoadError(error.message))
-  }, [])
+      .finally(() => setLoading(false))
+  }
+
+  function loadTasks() {
+    setLoading(true)
+    setLoadError('')
+    fetchTasks()
+  }
+
+  useEffect(fetchTasks, [])
 
   // API 가 성공을 응답한 뒤에만 화면에 카드를 더한다. (D-005)
   async function handleCreate(input) {
@@ -52,12 +63,26 @@ function App() {
     <main>
       <h1>task-flow</h1>
       <TaskForm onCreate={handleCreate} />
-      {loadError ? <p role="alert">목록을 불러오지 못했습니다: {loadError}</p> : <Board
-          tasks={tasks}
-          onStatusChange={handleStatusChange}
-          onUpdate={handleUpdate}
-          onDelete={handleDelete}
-        />}
+      {loading && <p className="notice">불러오는 중...</p>}
+      {!loading && loadError && (
+        <div className="notice" role="alert">
+          <p>목록을 불러오지 못했습니다: {loadError}</p>
+          <button type="button" onClick={loadTasks}>
+            다시 시도
+          </button>
+        </div>
+      )}
+      {!loading && !loadError && (
+        <>
+          {tasks.length === 0 && <p className="notice">아직 Task 가 없습니다. 위에서 첫 Task 를 만들어 보세요.</p>}
+          <Board
+            tasks={tasks}
+            onStatusChange={handleStatusChange}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+          />
+        </>
+      )}
     </main>
   )
 }
