@@ -3,7 +3,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException
 
 from .. import db
-from ..schemas import Task, TaskCreate
+from ..schemas import StatusUpdate, Task, TaskCreate
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -26,3 +26,14 @@ def create_task(body: TaskCreate):
         return db.create_task(body.title, body.description)
     except sqlite3.Error:
         raise _storage_error()
+
+
+@router.patch("/{task_id}/status", response_model=Task)
+def update_status(task_id: int, body: StatusUpdate):
+    try:
+        task = db.update_status(task_id, body.status)
+    except sqlite3.Error:
+        raise _storage_error()
+    if task is None:
+        raise HTTPException(status_code=404, detail="대상 카드가 없습니다")
+    return task

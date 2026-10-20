@@ -60,3 +60,15 @@ def create_task(title: str, description: str) -> dict:
         )
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return dict(row)
+
+
+def update_status(task_id: int, status: str) -> dict | None:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
+            (status, _now(), task_id),
+        )
+        if cursor.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    return dict(row)
