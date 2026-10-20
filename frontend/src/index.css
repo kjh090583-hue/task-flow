@@ -109,3 +109,84 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.task-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.task-form input {
+  flex: 1 1 200px;
+  padding: 8px;
+  font: inherit;
+}
+
+.task-form p {
+  flex-basis: 100%;
+  text-align: left;
+  color: #c0392b;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 0 16px 16px;
+  text-align: left;
+}
+
+.column {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.column ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.card {
+  display: grid;
+  gap: 6px;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  padding: 6px;
+  font: inherit;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card [role='alert'] {
+  color: #c0392b;
+}
+
+.notice {
+  padding: 0 16px 16px;
+}
+
+.notice[role='alert'] {
+  color: #c0392b;
+}
