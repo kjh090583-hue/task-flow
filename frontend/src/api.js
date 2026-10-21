@@ -1,15 +1,31 @@
 // API 호출은 이 모듈을 통해서만 한다.
 const BASE_URL = '/api'
 
+// 실패 안내 문구. (D-027)
+export const MESSAGES = {
+  network: '서버에 연결할 수 없습니다. API 가 실행 중인지 확인하세요.',
+  saveFailed: '저장하지 못했습니다. 다시 시도하세요.',
+  notFound: '이미 삭제된 카드입니다. 목록을 새로 불러왔습니다.',
+  listFailed: '목록을 불러오지 못했습니다.',
+}
+
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function request(path, options) {
   let response
   try {
     response = await fetch(`${BASE_URL}${path}`, options)
   } catch {
-    throw new Error('API 에 연결할 수 없습니다')
+    throw new ApiError(MESSAGES.network, 0)
   }
   if (!response.ok) {
-    throw new Error(`API 응답 오류: ${response.status}`)
+    const message = response.status === 404 ? MESSAGES.notFound : MESSAGES.saveFailed
+    throw new ApiError(message, response.status)
   }
   return response.status === 204 ? null : response.json()
 }
