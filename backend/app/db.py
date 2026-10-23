@@ -6,6 +6,9 @@ from pathlib import Path
 
 DB_PATH = Path(os.environ.get("TASKFLOW_DB", Path(__file__).resolve().parent.parent / "taskflow.db"))
 
+# 이전용 계정. 기존 Task 의 주인이고, 로그인이 생기기 전까지 새 카드의 주인이기도 하다. (D-037)
+MIGRATED_EMAIL = "migrated@test.com"
+
 # 허용 상태 목록은 여기 한 곳에서만 정의한다. (D-003)
 STATUSES = ("TODO", "IN_PROGRESS", "DONE")
 
@@ -53,11 +56,25 @@ def list_tasks() -> list[dict]:
 def create_task(title: str, description: str) -> dict:
     now = _now()
     with _connect() as conn:
-        cursor = conn.execute(
-            "INSERT INTO tasks (title, description, status, created_at, updated_at) "
-            "VALUES (?, ?, 'TODO', ?, ?)",
-            (title, description, now, now),
-        )
+        has_owner = any(col["name"] == "owner_id" for col in conn.execute("PRAGMA table_info(tasks)"))
+        if has_owner:
+            # 임시: 로그인(단위 2 ~ 3)이 생기기 전까지 새 카드의 주인은 이전용 계정이다. (D-036, D-037)
+            # owner_id 는 NOT NULL 이므로 주인 없이 만들 수 없다. 단위 3 에서 로그인한 사용자로 바꾼다.
+            owner = conn.execute("SELECT id FROM users WHERE email = ?", (MIGRATED_EMAIL,)).fetchone()
+            if owner is None:
+                raise sqlite3.IntegrityError("이전용 계정이 없다")
+            cursor = conn.execute(
+                "INSERT INTO tasks (title, description, status, created_at, updated_at, owner_id) "
+                "VALUES (?, ?, 'TODO', ?, ?, ?)",
+                (title, description, now, now, owner["id"]),
+            )
+        else:
+            # 아직 마이그레이션하지 않은 DB: 이전과 같이 동작한다.
+            cursor = conn.execute(
+                "INSERT INTO tasks (title, description, status, created_at, updated_at) "
+                "VALUES (?, ?, 'TODO', ?, ?)",
+                (title, description, now, now),
+            )
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return dict(row)
 
