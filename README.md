@@ -29,3 +29,12 @@ npm run dev                      # http://localhost:5173
 
 브라우저에서 http://localhost:5173 을 열면 "API 연결: 정상" 이 보인다. API 를 끄면 "연결할 수 없음" 으로 바뀐다.
 화면은 `/api/...` 로 호출하고, Vite 개발 서버가 이를 API(8000 포트)로 전달한다. (`frontend/vite.config.js`)
+
+## 테스트
+임시 폴더의 DB 만 쓰므로 실제 `taskflow.db` 는 바뀌지 않는다. `backend` 에서 실행한다.
+
+```
+uv run python -m unittest discover -s tests -t .
+```
+
+마이그레이션(Task 수 · 상태 · 내용 · 주인 · 되돌리기)과 로그인 보호(401, 남의 Task 404)를 확인한다.
