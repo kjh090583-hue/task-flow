@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 def _connect():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")  # 연결마다 켜야 외래 키를 검사한다. (D-038)
     try:
         yield conn
         conn.commit()
@@ -107,3 +108,72 @@ def delete_task(task_id: int) -> bool:
     with _connect() as conn:
         cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     return cursor.rowcount > 0
+
+
+# ---- 사용자 · 세션 (D-036, D-038)
+
+
+def get_user_by_email(email: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    return dict(row) if row else None
+
+
+def create_user(email: str, password_hash: str) -> dict:
+    # 이미 있는 이메일이면 sqlite3.IntegrityError 가 난다.
+    with _connect() as conn:
+        cursor = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            (email, password_hash, _now()),
+        )
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def claim_user(user_id: int, password_hash: str) -> bool:
+    # 비밀번호가 아직 없는 계정에만 한 번 정해 줄 수 있다. 이미 정해졌으면 False.
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash IS NULL",
+            (password_hash, user_id),
+        )
+    return cursor.rowcount == 1
+
+
+def create_session(user_id: int, token_hash: str, expires_at: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO sessions (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, token_hash, expires_at, _now()),
+        )
+
+
+def delete_expired_sessions() -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (_now(),))
+
+
+def get_session_user(token_hash: str) -> dict | None:
+    # 만료된 세션이면 지우고 None 을 돌려준다.
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT s.id AS session_id, s.expires_at, u.id, u.email "
+            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
+            (token_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        if row["expires_at"] <= _now():
+            conn.execute("DELETE FROM sessions WHERE id = ?", (row["session_id"],))
+            return None
+    return dict(row)
+
+
+def extend_session(session_id: int, expires_at: str) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE sessions SET expires_at = ? WHERE id = ?", (expires_at, session_id))
+
+
+def delete_session(session_id: int) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
