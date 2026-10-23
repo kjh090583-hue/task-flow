@@ -73,6 +73,9 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
 
   return (
     <li className="card">
+      <span className="badge" data-status={task.status}>
+        {task.status.replace('_', ' ')}
+      </span>
       <strong>{task.title}</strong>
       {task.description && <p>{task.description}</p>}
       <select

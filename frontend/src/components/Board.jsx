@@ -8,6 +8,7 @@ function Board({ tasks, ...handlers }) {
         <Column
           key={status}
           label={label}
+          status={status}
           tasks={tasks.filter((task) => task.status === status)}
           {...handlers}
         />
