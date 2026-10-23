@@ -1,24 +1,18 @@
 """로그인 없이는 401, 남의 Task 는 404 인지 확인한다. (D-033)"""
-import os
 import unittest
 
 from fastapi.testclient import TestClient
 
-from .helpers import alembic, make_old_db
+from .helpers import get_app
 
 PASSWORD = "Passw0rd!long-enough"
-DB = os.environ["TASKFLOW_DB"]
 app = None
 
 
 def setUpModule():
-    # 이전 전 모양의 DB 를 만들고 실제와 같은 방법(alembic)으로 이전한다.
+    # 이전 전 모양의 DB 를 실제와 같은 방법(alembic)으로 이전한 앱을 받는다.
     global app
-    make_old_db(DB, [("옛 카드 1", "", "TODO"), ("옛 카드 2", "", "DONE")])
-    alembic(DB, "upgrade", "head")
-    from app.main import app as fastapi_app  # 환경 변수를 정한 뒤에 가져온다
-
-    app = fastapi_app
+    app = get_app()
 
 
 class TaskProtectionTest(unittest.TestCase):
