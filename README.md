@@ -6,6 +6,14 @@
 - `backend/` — API (FastAPI)
 
 ## 실행
+처음 한 번, API 를 켜기 전에 `backend` 에서 설정 파일과 DB 를 준비한다.
+
+```
+cd backend
+cp .env.example .env             # SESSION_SECRET 값을 채운다 (이 파일은 Git 에 올리지 않는다)
+uv run alembic upgrade head      # DB 파일(backend/taskflow.db)과 표를 만든다
+```
+
 터미널 두 개에서 각각 실행한다.
 
 ```
