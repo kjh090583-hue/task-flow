@@ -53,3 +53,19 @@ def content(db_path):
     ).fetchall()
     conn.close()
     return rows
+
+
+_app = None
+
+
+def get_app():
+    """이전 전 모양의 DB 를 만들고 alembic 으로 이전한 뒤 앱을 돌려준다. 한 번만 한다."""
+    global _app
+    if _app is None:
+        db_path = os.environ["TASKFLOW_DB"]
+        make_old_db(db_path, [("옛 카드 1", "", "TODO"), ("옛 카드 2", "", "DONE")])
+        alembic(db_path, "upgrade", "head")
+        from app.main import app  # 환경 변수를 정한 뒤에 가져온다
+
+        _app = app
+    return _app
