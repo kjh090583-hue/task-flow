@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatDue, PRIORITIES, priorityLabel, STATUSES } from './statuses'
+import { PRIORITIES, priorityLabel, STATUSES } from './statuses'
 
 function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
   const [message, setMessage] = useState('')
@@ -96,15 +96,12 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
       </span>
       <strong>{task.title}</strong>
       <div className="card-meta">
+        {/* 기한 초과 여부는 서버가 계산한 값을 그대로 보여 준다. (D-042) */}
+        {task.is_overdue && <span className="chip overdue-chip">기한 초과</span>}
         <span className="chip" data-priority={task.priority}>
           {priorityLabel(task.priority)}
         </span>
-        {task.due_date && (
-          <span className="due" title={task.due_date}>
-            마감 {formatDue(task.due_date)}
-          </span>
-        )}
-        {task.is_overdue && <span className="chip overdue-chip">기한 초과</span>}
+        {task.due_date && <span className="due">마감 {task.due_date}</span>}
       </div>
       {task.description && <p>{task.description}</p>}
       <select

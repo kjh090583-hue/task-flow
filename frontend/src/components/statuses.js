@@ -17,8 +17,3 @@ export const DEFAULT_PRIORITY = 'NORMAL'
 export function priorityLabel(priority) {
   return PRIORITIES.find((item) => item.priority === priority)?.label ?? priority
 }
-
-// 마감일은 `MM-DD` 로 보이고, 올해가 아니면 연도를 붙인다. (D-043)
-export function formatDue(dueDate) {
-  return dueDate.startsWith(`${new Date().getFullYear()}-`) ? dueDate.slice(5) : dueDate
-}

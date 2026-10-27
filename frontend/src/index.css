@@ -322,7 +322,6 @@ code {
 }
 
 .overdue-chip {
-  margin-left: auto;
   border-color: #dc2626;
   color: #b91c1c;
   background: #fff;
