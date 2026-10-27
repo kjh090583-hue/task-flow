@@ -109,12 +109,23 @@ function App() {
     setAuthNotice('')
   }
 
+  // 성공 응답을 화면에 반영한 뒤 목록을 다시 받아 서버가 정렬한 순서와 기한 초과 표시를 따른다. (D-005, D-042, D-043)
+  // 다시 받지 못하면 응답만 반영한 채로 둔다.
+  async function syncTasks(applyResponse) {
+    setTasks(applyResponse)
+    try {
+      setTasks(await getTasks())
+    } catch (error) {
+      if (error.status === 401) loseLogin(error)
+    }
+  }
+
   // API 가 성공을 응답한 뒤에만 화면에 카드를 더한다. (D-005)
   async function handleCreate(input) {
     setNotice('')
     try {
       const created = await createTask(input)
-      setTasks((current) => [...current, created])
+      await syncTasks((current) => [...current, created])
     } catch (error) {
       if (error.status === 401) loseLogin(error)
       throw error
@@ -137,7 +148,7 @@ function App() {
     setNotice('')
     try {
       const updated = await request()
-      setTasks((current) => current.map((task) => (task.id === id ? updated : task)))
+      await syncTasks((current) => current.map((task) => (task.id === id ? updated : task)))
     } catch (error) {
       await handleFailure(error)
       throw error

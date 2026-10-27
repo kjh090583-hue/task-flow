@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { STATUSES } from './statuses'
+import { formatDue, PRIORITIES, priorityLabel, STATUSES } from './statuses'
 
 function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
   const [message, setMessage] = useState('')
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description)
+  const [priority, setPriority] = useState(task.priority)
+  const [dueDate, setDueDate] = useState(task.due_date ?? '')
 
   // 실패하면 화면은 task 값을 그대로 보인다. (D-005)
   async function run(action) {
@@ -22,6 +24,8 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
   function startEdit() {
     setTitle(task.title)
     setDescription(task.description)
+    setPriority(task.priority)
+    setDueDate(task.due_date ?? '')
     setMessage('')
     setEditing(true)
   }
@@ -33,7 +37,8 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
       setMessage('제목을 입력하세요')
       return
     }
-    if (await run(() => onUpdate(task.id, { title, description }))) {
+    // 마감일을 비우면 null 을 보내 마감일을 지운다. (D-041)
+    if (await run(() => onUpdate(task.id, { title, description, priority, due_date: dueDate || null }))) {
       setEditing(false)
     }
   }
@@ -59,6 +64,19 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
             onChange={(event) => setDescription(event.target.value)}
             aria-label="설명"
           />
+          <select value={priority} onChange={(event) => setPriority(event.target.value)} aria-label="우선순위">
+            {PRIORITIES.map(({ priority: value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(event) => setDueDate(event.target.value)}
+            aria-label="마감일"
+          />
           <div className="card-actions">
             <button type="submit">저장</button>
             <button type="button" onClick={() => setEditing(false)}>
@@ -72,11 +90,22 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
   }
 
   return (
-    <li className="card">
+    <li className="card" data-overdue={task.is_overdue}>
       <span className="badge" data-status={task.status}>
         {task.status.replace('_', ' ')}
       </span>
       <strong>{task.title}</strong>
+      <div className="card-meta">
+        <span className="chip" data-priority={task.priority}>
+          {priorityLabel(task.priority)}
+        </span>
+        {task.due_date && (
+          <span className="due" title={task.due_date}>
+            마감 {formatDue(task.due_date)}
+          </span>
+        )}
+        {task.is_overdue && <span className="chip overdue-chip">기한 초과</span>}
+      </div>
       {task.description && <p>{task.description}</p>}
       <select
         value={task.status}

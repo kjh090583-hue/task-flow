@@ -95,11 +95,12 @@ export function getTasks() {
   return request('/tasks')
 }
 
-export function createTask({ title, description }) {
+// priority 는 지울 수 없고, due_date 는 null 이면 마감일이 없다. (D-041)
+export function createTask({ title, description, priority, due_date }) {
   return request('/tasks', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, priority, due_date }),
   })
 }
 
@@ -111,11 +112,11 @@ export function updateStatus(id, status) {
   })
 }
 
-export function updateTask(id, { title, description }) {
+export function updateTask(id, { title, description, priority, due_date }) {
   return request(`/tasks/${id}`, {
     method: 'PATCH',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, priority, due_date }),
   })
 }
 
