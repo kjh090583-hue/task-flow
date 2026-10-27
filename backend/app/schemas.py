@@ -1,17 +1,39 @@
 import re
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
 Status = Literal["TODO", "IN_PROGRESS", "DONE"]
+Priority = Literal["LOW", "NORMAL", "HIGH"]
+
+# 마감일은 날짜만 받는다. (D-041)
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # 이메일은 @ 앞뒤가 있고 점이 있는 도메인이면 된다. (D-038)
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class TaskCreate(BaseModel):
+    # 등록과 수정이 같이 쓴다. priority · due_date 는 수정에서 보내지 않으면 그대로 둔다. (D-041)
+    # priority 는 null 을 받지 않는다(422). due_date 는 null 이면 마감일이 없다.
     title: str
     description: str = ""
+    priority: Priority = "NORMAL"
+    due_date: str | None = None
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def due_date_format(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str) or not _DATE_PATTERN.match(value):
+            raise ValueError("마감일은 YYYY-MM-DD 날짜여야 합니다")
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            raise ValueError("마감일은 YYYY-MM-DD 날짜여야 합니다")
+        return value
 
     @field_validator("title")
     @classmethod
@@ -28,6 +50,9 @@ class Task(BaseModel):
     title: str
     description: str
     status: Status
+    priority: Priority
+    due_date: str | None
+    is_overdue: bool  # 저장하지 않고 응답할 때 계산한다. (D-042)
     created_at: str
     updated_at: str
 

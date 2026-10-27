@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("TASKFLOW_DB", Path(__file__).resolve().parent.parent / "taskflow.db"))
@@ -11,6 +11,9 @@ MIGRATED_EMAIL = "migrated@test.com"
 
 # 허용 상태 목록은 여기 한 곳에서만 정의한다. (D-003)
 STATUSES = ("TODO", "IN_PROGRESS", "DONE")
+
+# 허용 우선순위 목록도 여기 한 곳에서만 정의한다. 기본값은 NORMAL 이다. (D-003, D-041)
+PRIORITIES = ("LOW", "NORMAL", "HIGH")
 
 
 @contextmanager
@@ -32,10 +35,11 @@ def init_db() -> None:
     # 표는 alembic 이 만든다. 마이그레이션하지 않은 DB 면 시작할 때 실패해서 조용히 어긋나지 않게 한다. (D-031, D-036)
     with _connect() as conn:
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        has_owner = "tasks" in tables and any(
-            col["name"] == "owner_id" for col in conn.execute("PRAGMA table_info(tasks)")
+        task_columns = (
+            {col["name"] for col in conn.execute("PRAGMA table_info(tasks)")} if "tasks" in tables else set()
         )
-    if not {"tasks", "users", "sessions"} <= tables or not has_owner:
+    # owner_id(D-036)와 priority · due_date(D-041)가 있어야 마이그레이션한 DB 이다.
+    if not {"tasks", "users", "sessions"} <= tables or not {"owner_id", "priority", "due_date"} <= task_columns:
         raise RuntimeError(
             "DB 가 아직 마이그레이션되지 않았습니다. backend 폴더에서 `uv run alembic upgrade head` 를 실행하세요."
         )
@@ -48,22 +52,48 @@ def _now() -> str:
 # Task 는 모두 owner_id(로그인한 사용자)로 한정한다. 남의 Task 는 없는 것과 같다. (D-033)
 
 
+def _today() -> str:
+    # 기한 초과를 가르는 "오늘"은 서버 컴퓨터의 로컬 날짜이다. (D-042)
+    return date.today().isoformat()
+
+
+def _to_task(row: sqlite3.Row, today: str) -> dict:
+    # 기한 초과는 저장하지 않고 응답할 때 계산한다: 마감일이 오늘보다 이전이고 완료가 아니다. (R-011, D-042)
+    task = dict(row)
+    due = task["due_date"]
+    task["is_overdue"] = due is not None and due < today and task["status"] != "DONE"
+    return task
+
+
+def _sort_key(task: dict) -> tuple:
+    # 기한 초과 → 우선순위(HIGH 먼저) → 마감일 빠른 순(없으면 맨 뒤) → ID. (R-012, D-042)
+    due = task["due_date"]
+    return (
+        not task["is_overdue"],
+        PRIORITIES.index(task["priority"]) * -1,
+        due is None,
+        due or "",
+        task["id"],
+    )
+
+
 def list_tasks(owner_id: int) -> list[dict]:
     with _connect() as conn:
-        rows = conn.execute("SELECT * FROM tasks WHERE owner_id = ? ORDER BY id", (owner_id,)).fetchall()
-    return [dict(row) for row in rows]
+        rows = conn.execute("SELECT * FROM tasks WHERE owner_id = ?", (owner_id,)).fetchall()
+    today = _today()
+    return sorted((_to_task(row, today) for row in rows), key=_sort_key)
 
 
-def create_task(title: str, description: str, owner_id: int) -> dict:
+def create_task(title: str, description: str, owner_id: int, priority: str = "NORMAL", due_date: str | None = None) -> dict:
     now = _now()
     with _connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO tasks (title, description, status, created_at, updated_at, owner_id) "
-            "VALUES (?, ?, 'TODO', ?, ?, ?)",
-            (title, description, now, now, owner_id),
+            "INSERT INTO tasks (title, description, status, priority, due_date, created_at, updated_at, owner_id) "
+            "VALUES (?, ?, 'TODO', ?, ?, ?, ?, ?)",
+            (title, description, priority, due_date, now, now, owner_id),
         )
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cursor.lastrowid,)).fetchone()
-    return dict(row)
+    return _to_task(row, _today())
 
 
 def update_status(task_id: int, status: str, owner_id: int) -> dict | None:
@@ -75,19 +105,22 @@ def update_status(task_id: int, status: str, owner_id: int) -> dict | None:
         if cursor.rowcount == 0:
             return None
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    return dict(row)
+    return _to_task(row, _today())
 
 
-def update_task(task_id: int, title: str, description: str, owner_id: int) -> dict | None:
+def update_task(task_id: int, title: str, description: str, owner_id: int, extra: dict | None = None) -> dict | None:
+    # extra 에는 요청에서 보낸 priority · due_date 만 들어 있다. 보내지 않은 값은 그대로 둔다. (D-041)
+    extra = {key: value for key, value in (extra or {}).items() if key in ("priority", "due_date")}
+    assignments = "".join(f", {key} = ?" for key in extra)
     with _connect() as conn:
         cursor = conn.execute(
-            "UPDATE tasks SET title = ?, description = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
-            (title, description, _now(), task_id, owner_id),
+            f"UPDATE tasks SET title = ?, description = ?, updated_at = ?{assignments} WHERE id = ? AND owner_id = ?",
+            (title, description, _now(), *extra.values(), task_id, owner_id),
         )
         if cursor.rowcount == 0:
             return None
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    return dict(row)
+    return _to_task(row, _today())
 
 
 def delete_task(task_id: int, owner_id: int) -> bool:
