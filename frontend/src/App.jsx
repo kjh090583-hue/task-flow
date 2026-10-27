@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createTask,
   deleteTask,
@@ -27,6 +27,13 @@ function App() {
   const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
+  // 목록을 다시 받는 동안 사용자나 요청이 바뀌었는지 가리는 데 쓴다.
+  const userIdRef = useRef(null)
+  const refreshSeq = useRef(0)
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null
+  }, [user])
 
   // 로그인하면 보드를 불러오는 중으로 바꾸고 사용자를 정한다. 보드는 사용자가 정해지면 불러온다.
   function applyLogin(loggedIn) {
@@ -109,12 +116,28 @@ function App() {
     setAuthNotice('')
   }
 
+  // 성공 응답을 화면에 반영한 뒤 목록을 다시 받아 서버가 정렬한 순서와 기한 초과 표시를 따른다. (D-005, D-042, D-043)
+  // 다시 받지 못하면 응답만 반영한 채로 둔다.
+  // 로그아웃하거나 다른 사용자가 되었거나 더 새로운 다시 받기가 있으면 늦게 온 응답은 버린다.
+  async function syncTasks(applyResponse) {
+    setTasks(applyResponse)
+    const requestedFor = userIdRef.current
+    const seq = ++refreshSeq.current
+    const isStale = () => userIdRef.current !== requestedFor || refreshSeq.current !== seq
+    try {
+      const latest = await getTasks()
+      if (!isStale()) setTasks(latest)
+    } catch (error) {
+      if (error.status === 401 && !isStale()) loseLogin(error)
+    }
+  }
+
   // API 가 성공을 응답한 뒤에만 화면에 카드를 더한다. (D-005)
   async function handleCreate(input) {
     setNotice('')
     try {
       const created = await createTask(input)
-      setTasks((current) => [...current, created])
+      await syncTasks((current) => [...current, created])
     } catch (error) {
       if (error.status === 401) loseLogin(error)
       throw error
@@ -137,7 +160,7 @@ function App() {
     setNotice('')
     try {
       const updated = await request()
-      setTasks((current) => current.map((task) => (task.id === id ? updated : task)))
+      await syncTasks((current) => current.map((task) => (task.id === id ? updated : task)))
     } catch (error) {
       await handleFailure(error)
       throw error

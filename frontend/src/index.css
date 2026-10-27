@@ -119,6 +119,13 @@ code {
   font: inherit;
 }
 
+.task-form select,
+.task-form .due-input {
+  flex: 0 0 auto;
+  padding: 8px;
+  font: inherit;
+}
+
 .task-form p {
   flex-basis: 100%;
   text-align: left;
@@ -272,6 +279,61 @@ code {
 .badge[data-status='DONE'] {
   background: #dcfce7;
   color: #15803d;
+}
+
+/* 우선순위 · 마감일 · 기한 초과 (D-043) */
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.chip {
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.chip[data-priority='HIGH'] {
+  border-color: #dc2626;
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.chip[data-priority='NORMAL'] {
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.chip[data-priority='LOW'] {
+  border-color: #9ca3af;
+  color: #4b5563;
+  background: #f3f4f6;
+}
+
+.due {
+  font-family: var(--mono);
+}
+
+.overdue-chip {
+  border-color: #dc2626;
+  color: #b91c1c;
+  background: #fff;
+}
+
+.card[data-overdue='true'] {
+  border-color: #dc2626;
+}
+
+.card[data-overdue='true'] .due {
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 @media (max-width: 720px) {

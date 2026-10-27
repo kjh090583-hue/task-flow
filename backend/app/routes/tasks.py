@@ -24,7 +24,7 @@ def list_tasks(user: dict = Depends(auth.current_user)):
 @router.post("", response_model=Task, status_code=201)
 def create_task(body: TaskCreate, user: dict = Depends(auth.current_user)):
     try:
-        return db.create_task(body.title, body.description, user["id"])
+        return db.create_task(body.title, body.description, user["id"], body.priority, body.due_date)
     except sqlite3.Error:
         raise _storage_error()
 
@@ -42,8 +42,10 @@ def update_status(task_id: int, body: StatusUpdate, user: dict = Depends(auth.cu
 
 @router.patch("/{task_id}", response_model=Task)
 def update_task(task_id: int, body: TaskCreate, user: dict = Depends(auth.current_user)):
+    # priority · due_date 는 요청에 있는 것만 바꾼다. due_date 가 null 이면 마감일을 지운다. (D-041)
+    sent = {key: getattr(body, key) for key in ("priority", "due_date") if key in body.model_fields_set}
     try:
-        task = db.update_task(task_id, body.title, body.description, user["id"])
+        task = db.update_task(task_id, body.title, body.description, user["id"], sent)
     except sqlite3.Error:
         raise _storage_error()
     if task is None:
