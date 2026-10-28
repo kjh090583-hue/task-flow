@@ -1,9 +1,10 @@
 import sqlite3
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import auth, db
-from ..schemas import StatusUpdate, Task, TaskCreate
+from .. import auth, db, generate
+from ..schemas import GeneratedTasks, GenerateRequest, StatusUpdate, Task, TaskCreate
 
 # 모든 Task 요청은 로그인이 필요하다. 로그인하지 않았으면 401. (D-033)
 router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(auth.current_user)])
@@ -27,6 +28,17 @@ def create_task(body: TaskCreate, user: dict = Depends(auth.current_user)):
         return db.create_task(body.title, body.description, user["id"], body.priority, body.due_date)
     except sqlite3.Error:
         raise _storage_error()
+
+
+@router.post("/generate", response_model=GeneratedTasks)
+def generate_tasks(body: GenerateRequest):
+    # 주제로 할 일을 만들어 돌려주기만 한다. DB 는 건드리지 않고, 저장은 사용자가 등록 요청으로 한다. (D-045)
+    try:
+        return generate.generate_tasks(body.topic, date.today())
+    except generate.GenerateUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+    except generate.GenerateFailed:
+        raise HTTPException(status_code=502, detail="생성 실패")
 
 
 @router.patch("/{task_id}/status", response_model=Task)

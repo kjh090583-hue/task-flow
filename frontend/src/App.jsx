@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   createTask,
   deleteTask,
+  generateTasks,
   getMe,
   getTasks,
   login,
@@ -144,6 +145,44 @@ function App() {
     }
   }
 
+  // 주제로 할 일을 만들어 미리 보기용 값만 받는다. 저장하지 않으므로 목록은 그대로이다. 로그인이 만료되면(401) 로그인 화면으로 돌아간다. (D-045)
+  async function handleGenerate(topic) {
+    try {
+      return await generateTasks(topic)
+    } catch (error) {
+      if (error.status === 401) loseLogin(error)
+      throw error
+    }
+  }
+
+  // [모두 등록]: 기존 등록 요청을 목록 순서대로 하나씩 보낸다. 하나가 실패해도 나머지를 계속하고, 실패한 것만 돌려준다. (D-045)
+  // 등록한 것이 있으면 응답을 반영한 뒤 목록을 한 번 다시 받는다. (D-043)
+  async function handleRegisterAll(drafts) {
+    setNotice('')
+    const created = []
+    const failed = []
+    for (const draft of drafts) {
+      try {
+        created.push(
+          await createTask({
+            title: draft.title,
+            description: '',
+            priority: draft.priority,
+            due_date: draft.due_date,
+          }),
+        )
+      } catch (error) {
+        if (error.status === 401) {
+          loseLogin(error)
+          throw error
+        }
+        failed.push(draft)
+      }
+    }
+    if (created.length > 0) await syncTasks((current) => [...current, ...created])
+    return failed
+  }
+
   // 성공 응답을 받은 뒤에만 카드의 상태를 바꾼다. 카드가 없으면(404) 목록을 다시 불러온다. (D-005)
   // 카드가 사라지면 카드 아래 안내도 함께 사라지므로, 이 경우의 안내는 보드 위에 보인다. (D-027)
   // 로그인이 만료되면(401) 로그인 화면으로 돌아간다.
@@ -226,7 +265,7 @@ function App() {
         <h2>내 Task 보드</h2>
         <p>현재 로그인한 사용자의 Task 만 표시됩니다.</p>
       </div>
-      <TaskForm onCreate={handleCreate} />
+      <TaskForm onCreate={handleCreate} onGenerate={handleGenerate} onRegisterAll={handleRegisterAll} />
       {notice && (
         <p className="notice" role="alert">
           {notice}

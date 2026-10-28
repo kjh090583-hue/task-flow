@@ -8,6 +8,10 @@ export const MESSAGES = {
   notFound: '이미 삭제된 카드입니다. 목록을 새로 불러왔습니다.',
   listFailed: '목록을 불러오지 못했습니다.',
   sessionExpired: '로그인이 만료되었습니다. 다시 로그인하세요.',
+  // AI 로 할 일 만들기 (D-045)
+  generating: '할 일을 만드는 중...',
+  generateUnavailable: '지금은 AI 를 쓸 수 없습니다. 직접 입력해 주세요.',
+  generateFailed: '할 일을 만들지 못했습니다. 다시 눌러 보세요.',
 }
 
 export class ApiError extends Error {
@@ -118,6 +122,33 @@ export function updateTask(id, { title, description, priority, due_date }) {
     headers: JSON_HEADERS,
     body: JSON.stringify({ title, description, priority, due_date }),
   })
+}
+
+// 주제 한 줄로 할 일 3 ~ 5개를 받는다. 저장하지 않고 미리 보기용 값만 돌려준다. (D-045)
+// 503 은 AI 를 쓸 수 없다는 안내, 그 밖의 실패(502 포함)는 다시 눌러 보라는 안내이다.
+export async function generateTasks(topic) {
+  let response
+  try {
+    response = await fetch(`${BASE_URL}/tasks/generate`, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ topic }),
+    })
+  } catch {
+    throw new ApiError(MESSAGES.network, 0)
+  }
+  if (response.status === 401) throw new ApiError(MESSAGES.sessionExpired, 401)
+  if (!response.ok) {
+    const message = response.status === 503 ? MESSAGES.generateUnavailable : MESSAGES.generateFailed
+    throw new ApiError(message, response.status)
+  }
+  try {
+    const { tasks } = await response.json()
+    if (Array.isArray(tasks)) return tasks
+  } catch {
+    // 본문을 읽지 못하면 아래에서 실패로 알린다.
+  }
+  throw new ApiError(MESSAGES.generateFailed, response.status)
 }
 
 export function deleteTask(id) {
