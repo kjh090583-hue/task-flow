@@ -132,6 +132,54 @@ code {
   color: #c0392b;
 }
 
+.task-form .status {
+  color: var(--text);
+}
+
+/* AI 로 할 일 만들기: 미리 보기 (D-045) */
+.draft-preview {
+  flex-basis: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #ea580c;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #431407;
+  box-sizing: border-box;
+}
+
+.draft-preview h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.draft-preview ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.draft-preview li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-preview li > span:first-child {
+  flex: 1 1 160px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .draft-preview {
+    background: #2a1a10;
+    color: #fed7aa;
+  }
+}
+
 /* 머리글 · 보드 제목 · 요약 · 배지 (D-039) */
 .app-header {
   display: flex;
