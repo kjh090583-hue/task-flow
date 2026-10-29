@@ -83,15 +83,27 @@ def make_weekplan(tasks: list[dict], today: date) -> WeekPlan:
         if day.date in week:
             by_date.setdefault(day.date, []).extend(day.ids)
     used: set[int] = set()
-    days = []
+    plan: dict[str, list[int]] = {date_text: [] for date_text in week}
     for date_text in week:
-        ids = []
         for task_id in by_date.get(date_text, []):
             if task_id in known and task_id not in used:
                 used.add(task_id)
-                ids.append(task_id)
-        if ids:
-            days.append(WeekDay(date=date_text, ids=ids))
-    if not days:
+                plan[date_text].append(task_id)
+    if not used:
         raise BriefingFailed("쓸 수 있는 날이 없습니다")
-    return WeekPlan(days=days, note=answer.note)
+
+    # AI 가 어느 날에도 넣지 않은 할 일(마감 없는 일 포함)은 서버가 채워 모든 할 일이 표에 들어가게 한다. (D-048)
+    for task in pending:
+        if task["id"] not in used:
+            plan[_fallback_day(task, week, plan)].append(task["id"])
+    return WeekPlan(days=[WeekDay(date=d, ids=plan[d]) for d in week if plan[d]], note=answer.note)
+
+
+def _fallback_day(task: dict, week: list[str], plan: dict[str, list[int]]) -> str:
+    """빠진 할 일의 자리: 기한 초과는 오늘, 이번 주 마감은 마감 전날(이미 지났으면 오늘), 그 밖에는 할 일이 가장 적은 날."""
+    if task["is_overdue"]:
+        return week[0]
+    due = task["due_date"]
+    if due in week:
+        return max(week[0], (date.fromisoformat(due) - timedelta(days=1)).isoformat())
+    return min(week, key=lambda date_text: len(plan[date_text]))

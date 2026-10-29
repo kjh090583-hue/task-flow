@@ -142,9 +142,37 @@ class WeekPlanTest(unittest.TestCase):
     # ---- 검사
 
     def test_dates_outside_the_week_are_dropped(self):
+        # a 는 7일 밖 날짜만 받아 빠진 채로 남고, 아래 채우기 규칙으로 가장 한가한 날에 들어간다.
         a, b = self.add("가"), self.add("나")
         response = self.week(plan([at(-1, a), at(7, a), at(1, b)]))
-        self.assertEqual(response.json()["days"], [at(1, b)])
+        self.assertEqual(response.json()["days"], [at(0, a), at(1, b)])
+
+    # ---- 채우기: AI 가 어느 날에도 넣지 않은 할 일도 표에 들어간다 (D-048)
+
+    def test_tasks_the_ai_left_out_are_filled_in(self):
+        a = self.add("AI 가 넣은 일")
+        overdue = self.add("기한 초과", due_date=day(-1))
+        due_soon = self.add("사흘 뒤 마감", due_date=day(3))
+        no_due = self.add("마감 없는 일")
+        response = self.week(plan([at(0, a)]))
+        self.assertEqual(response.status_code, 200, response.text)
+        # 기한 초과는 오늘, 이번 주 마감은 마감 전날, 마감 없는 일은 가장 한가한 날(둘째 날)에 둔다.
+        self.assertEqual(response.json()["days"], [at(0, a, overdue), at(1, no_due), at(2, due_soon)])
+
+    def test_fill_in_edges(self):
+        a = self.add("AI 가 넣은 일")
+        due_today = self.add("오늘 마감", due_date=day(0))
+        far_due = self.add("열흘 뒤 마감", due_date=day(10))
+        response = self.week(plan([at(3, a)]))
+        # 오늘 마감은 전날이 이미 지나서 오늘, 이번 주 밖 마감은 마감 없는 일처럼 가장 한가한 날(둘째 날)에 둔다.
+        self.assertEqual(response.json()["days"], [at(0, due_today), at(1, far_due), at(3, a)])
+
+    def test_every_open_task_appears_exactly_once(self):
+        ids = [self.add(f"일 {n}", due_date=day(n - 2) if n % 2 else None) for n in range(9)]
+        response = self.week(plan([at(1, ids[0])]))
+        listed = [task_id for entry in response.json()["days"] for task_id in entry["ids"]]
+        self.assertEqual(sorted(listed), sorted(ids))
+        self.assertTrue(all(entry["date"] in [day(n) for n in range(7)] for entry in response.json()["days"]))
 
     def test_unknown_ids_are_dropped_and_empty_days_removed(self):
         a = self.add("일")
@@ -282,6 +310,26 @@ class WeekPlanTest(unittest.TestCase):
         response = self.week(plan([at(0, a), at(1, b)]))
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual({task["id"]: task["priority"] for task in self.sent("tasks")}, {a: "HIGH", b: "NORMAL"})
+
+    def test_out_of_rule_due_date_in_the_db_is_read_as_no_due_date(self):
+        # 형식이 틀리거나 달력에 없는 마감일이 API 를 거치지 않고 DB 에 들어간 경우. 마감일 없음으로 읽는다. (D-048)
+        # 특히 '2026-1-5' 는 글자 비교로 오늘보다 앞서, 가짜 기한 초과로 맨 앞에 정렬되던 값이다.
+        from app import db
+
+        good = self.add("정상", due_date=day(3))
+        bad = {value: self.add(f"규칙 밖 {value}") for value in ("2026-1-5", "next-week", "2026-99-99", "")}
+        with sqlite3.connect(db.DB_PATH) as conn:
+            conn.execute("PRAGMA ignore_check_constraints = ON")
+            for value, task_id in bad.items():
+                conn.execute("UPDATE tasks SET due_date = ? WHERE id = ?", (value, task_id))
+        board = {task["id"]: task for task in self.client.get("/tasks").json()}
+        self.assertEqual(board[good]["due_date"], day(3))
+        for value, task_id in bad.items():
+            self.assertEqual((board[task_id]["due_date"], board[task_id]["is_overdue"]), (None, False), value)
+        self.week(plan([at(0, good)]))
+        sent = {task["id"]: task for task in self.sent("tasks")}
+        for value, task_id in bad.items():
+            self.assertEqual((sent[task_id]["due_date"], sent[task_id]["overdue"]), (None, False), value)
 
     # ---- 안 바뀌는 것
 

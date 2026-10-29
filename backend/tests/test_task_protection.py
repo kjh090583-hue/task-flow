@@ -41,6 +41,34 @@ class TaskProtectionTest(unittest.TestCase):
         self.assertEqual(anonymous.delete("/tasks/1").status_code, 401)
         self.assertEqual(anonymous.get("/auth/me").status_code, 401)
 
+    # /tasks 아래의 모든 주소. 새 주소를 만들면 이 목록에 한 줄을 더해야 하고, 그러면 아래 두 시험이 그 주소의 로그인 보호도 확인한다.
+    TASK_ADDRESSES = {
+        ("GET", "/tasks"),
+        ("POST", "/tasks"),
+        ("POST", "/tasks/suggest"),
+        ("POST", "/tasks/briefing"),
+        ("POST", "/tasks/weekplan"),
+        ("PATCH", "/tasks/{task_id}/status"),
+        ("PATCH", "/tasks/{task_id}"),
+        ("DELETE", "/tasks/{task_id}"),
+    }
+
+    def test_task_address_list_is_complete(self):
+        # 이 FastAPI 는 라우터를 겹쳐 담아 app.routes 로는 안 보여서, 문서(OpenAPI)의 주소 목록을 쓴다.
+        actual = {
+            (method.upper(), path)
+            for path, methods in app.openapi()["paths"].items()
+            if path.startswith("/tasks")
+            for method in methods
+        }
+        self.assertEqual(actual, self.TASK_ADDRESSES)
+
+    def test_every_task_address_needs_login(self):
+        anonymous = self.new_client()
+        for method, path in sorted(self.TASK_ADDRESSES):
+            response = anonymous.request(method, path.replace("{task_id}", "1"))
+            self.assertEqual(response.status_code, 401, f"{method} {path}")
+
     def test_other_users_task_is_404_and_unchanged(self):
         a = self.new_client("iso-a@test.com")
         b = self.new_client("iso-b@test.com")

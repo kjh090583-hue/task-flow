@@ -57,12 +57,22 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def _is_date(text: str) -> bool:
+    try:
+        return len(text) == 10 and date.fromisoformat(text).isoformat() == text
+    except ValueError:
+        return False
+
+
 def _to_task(row: sqlite3.Row, today: str) -> dict:
     # 기한 초과는 저장하지 않고 응답할 때 계산한다: 마감일이 오늘보다 이전이고 완료가 아니다. (R-011, D-042)
     task = dict(row)
     # API 를 거치지 않고 DB 에 들어간 규칙 밖 우선순위는 보통으로 보고, 목록 전체가 깨지지 않게 한다. (D-048)
     if task["priority"] not in PRIORITIES:
         task["priority"] = "NORMAL"
+    # 마감일도 같다. 실제 YYYY-MM-DD 날짜가 아닌 값은 마감일 없음으로 본다. 글자 비교로 가짜 기한 초과가 되는 것을 막는다. (D-048)
+    if task["due_date"] is not None and not _is_date(task["due_date"]):
+        task["due_date"] = None
     due = task["due_date"]
     task["is_overdue"] = due is not None and due < today and task["status"] != "DONE"
     return task
