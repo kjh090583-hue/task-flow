@@ -2,7 +2,7 @@ import re
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 
 Status = Literal["TODO", "IN_PROGRESS", "DONE"]
 Priority = Literal["LOW", "NORMAL", "HIGH"]
@@ -84,6 +84,40 @@ class Suggestion(BaseModel):
         if not value:
             raise ValueError("이유는 비워 둘 수 없습니다")
         return value
+
+
+def _check_sentence(value: str, name: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError(f"{name} 는 비워 둘 수 없습니다")
+    return value
+
+
+class BriefingPick(BaseModel):
+    # 먼저 할 일 하나. id 는 정수만 받는다(문자열 · true/false 는 거절). (D-046)
+    model_config = ConfigDict(extra="forbid")
+
+    id: StrictInt
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def reason_not_blank(cls, value: str) -> str:
+        return _check_sentence(value, "이유")
+
+
+class Briefing(BaseModel):
+    # AI 가 만든 오늘 브리핑. 저장하지 않으며, AI 의 답 검사와 응답에 같이 쓴다. (D-046)
+    model_config = ConfigDict(extra="forbid")
+
+    top3: list[BriefingPick]
+    later: list[StrictInt]
+    cheer: str
+
+    @field_validator("cheer")
+    @classmethod
+    def cheer_not_blank(cls, value: str) -> str:
+        return _check_sentence(value, "응원")
 
 
 class Task(BaseModel):
