@@ -1,13 +1,24 @@
 import { useState } from 'react'
+import { useSuggest } from '../useSuggest'
+import { SuggestButton, SuggestNote } from './SuggestBar'
 import { PRIORITIES, priorityLabel, STATUSES } from './statuses'
 
-function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
+function TaskCard({ task, onStatusChange, onUpdate, onDelete, onSuggest }) {
   const [message, setMessage] = useState('')
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description)
   const [priority, setPriority] = useState(task.priority)
   const [dueDate, setDueDate] = useState(task.due_date ?? '')
+  // AI 제안은 입력란만 채운다. 저장은 아래 [저장] 버튼이 한다. (D-044)
+  const suggest = useSuggest(onSuggest)
+
+  function handleSuggest() {
+    suggest.suggest({ title, description }, (suggestion) => {
+      setPriority(suggestion.priority)
+      setDueDate(suggestion.due_date ?? '')
+    })
+  }
 
   // 실패하면 화면은 task 값을 그대로 보인다. (D-005)
   async function run(action) {
@@ -27,7 +38,13 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
     setPriority(task.priority)
     setDueDate(task.due_date ?? '')
     setMessage('')
+    suggest.reset()
     setEditing(true)
+  }
+
+  function cancelEdit() {
+    suggest.reset()
+    setEditing(false)
   }
 
   async function handleSave(event) {
@@ -39,6 +56,7 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
     }
     // 마감일을 비우면 null 을 보내 마감일을 지운다. (D-041)
     if (await run(() => onUpdate(task.id, { title, description, priority, due_date: dueDate || null }))) {
+      suggest.reset()
       setEditing(false)
     }
   }
@@ -79,10 +97,12 @@ function TaskCard({ task, onStatusChange, onUpdate, onDelete }) {
           />
           <div className="card-actions">
             <button type="submit">저장</button>
-            <button type="button" onClick={() => setEditing(false)}>
+            <button type="button" onClick={cancelEdit}>
               취소
             </button>
+            <SuggestButton busy={suggest.busy} onClick={handleSuggest} />
           </div>
+          <SuggestNote reason={suggest.reason} error={suggest.error} />
         </form>
         {message && <p role="alert">{message}</p>}
       </li>

@@ -8,6 +8,9 @@ export const MESSAGES = {
   notFound: '이미 삭제된 카드입니다. 목록을 새로 불러왔습니다.',
   listFailed: '목록을 불러오지 못했습니다.',
   sessionExpired: '로그인이 만료되었습니다. 다시 로그인하세요.',
+  suggesting: '제안을 받는 중...',
+  suggestUnavailable: '지금은 AI 제안을 쓸 수 없습니다. - 직접 입력을 주세요.',
+  suggestFailed: '제안을 못 받았습니다. 다시 제안 버튼을 눌러 보세요.',
 }
 
 export class ApiError extends Error {
@@ -102,6 +105,29 @@ export function createTask({ title, description, priority, due_date }) {
     headers: JSON_HEADERS,
     body: JSON.stringify({ title, description, priority, due_date }),
   })
+}
+
+// 제목 · 설명으로 우선순위 · 마감일 제안만 받는다. 저장하지 않는다. (D-044)
+// 503 은 AI 를 쓸 수 없는 경우, 그 밖의 실패는 제안을 못 받은 경우로 나눠 안내한다.
+export async function suggestTask({ title, description }) {
+  let response
+  try {
+    response = await fetch(`${BASE_URL}/tasks/suggest`, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ title, description }),
+    })
+  } catch {
+    throw new ApiError(MESSAGES.network, 0)
+  }
+  if (response.status === 401) throw new ApiError(MESSAGES.sessionExpired, 401)
+  if (response.status === 503) throw new ApiError(MESSAGES.suggestUnavailable, 503)
+  if (!response.ok) throw new ApiError(MESSAGES.suggestFailed, response.status)
+  try {
+    return await response.json()
+  } catch {
+    throw new ApiError(MESSAGES.suggestFailed, response.status)
+  }
 }
 
 export function updateStatus(id, status) {

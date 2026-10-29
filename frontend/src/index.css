@@ -132,6 +132,23 @@ code {
   color: #c0392b;
 }
 
+/* AI 제안: 버튼 · 진행 중 문구 · 이유 한 줄 (D-044) */
+.suggest-status {
+  align-self: center;
+  font-size: 13px;
+}
+
+.task-form .suggest-reason,
+.card .suggest-reason {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.card form .suggest-reason,
+.card form [role='alert'] {
+  margin: 6px 0 0;
+}
+
 /* 머리글 · 보드 제목 · 요약 · 배지 (D-039) */
 .app-header {
   display: flex;
