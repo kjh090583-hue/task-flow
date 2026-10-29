@@ -3,8 +3,8 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import auth, db, suggest
-from ..schemas import StatusUpdate, SuggestRequest, Suggestion, Task, TaskCreate
+from .. import auth, briefing, db, suggest
+from ..schemas import Briefing, StatusUpdate, SuggestRequest, Suggestion, Task, TaskCreate
 
 # 모든 Task 요청은 로그인이 필요하다. 로그인하지 않았으면 401. (D-033)
 router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(auth.current_user)])
@@ -39,6 +39,21 @@ def suggest_task(body: SuggestRequest):
         raise HTTPException(status_code=503, detail=str(error))
     except suggest.SuggestFailed:
         raise HTTPException(status_code=502, detail="제안 실패")
+
+
+@router.post("/briefing", response_model=Briefing)
+def briefing_today(user: dict = Depends(auth.current_user)):
+    # 로그인한 사람의 완료 아닌 Task 로 브리핑만 돌려준다. DB 는 읽기만 한다. (D-046)
+    try:
+        tasks = db.list_tasks(user["id"])
+    except sqlite3.Error:
+        raise _storage_error()
+    try:
+        return briefing.make_briefing(tasks, date.today())
+    except briefing.BriefingUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+    except briefing.BriefingFailed:
+        raise HTTPException(status_code=502, detail="브리핑 실패")
 
 
 @router.patch("/{task_id}/status", response_model=Task)
