@@ -502,3 +502,63 @@ code {
 .notice[role='alert'] {
   color: #c0392b;
 }
+
+/* 오늘 브리핑: 버튼 · 결과 카드 (D-047). 기존 규칙은 바꾸지 않고 더하기만 한다. */
+.briefing {
+  padding: 0 16px 16px;
+}
+
+.briefing-note {
+  margin-top: 8px;
+}
+
+.briefing-note[role='alert'] {
+  color: #c0392b;
+}
+
+.briefing-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.briefing-card h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.briefing-card ol,
+.briefing-card ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.briefing-mark {
+  margin-right: 6px;
+  color: var(--text-h);
+}
+
+.briefing-cheer {
+  color: var(--text-h);
+}
+
+.briefing-card button {
+  justify-self: start;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

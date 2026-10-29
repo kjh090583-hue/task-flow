@@ -11,6 +11,10 @@ export const MESSAGES = {
   suggesting: '제안을 받는 중...',
   suggestUnavailable: '지금은 AI 제안을 쓸 수 없습니다. - 직접 입력을 주세요.',
   suggestFailed: '제안을 못 받았습니다. 다시 제안 버튼을 눌러 보세요.',
+  briefing: '만드는 중…',
+  briefingUnavailable: '지금은 브리핑을 쓸 수 없습니다',
+  briefingFailed: '브리핑을 받지 못했습니다',
+  briefingEmpty: '오늘은 비어 있어요',
 }
 
 export class ApiError extends Error {
@@ -127,6 +131,24 @@ export async function suggestTask({ title, description }) {
     return await response.json()
   } catch {
     throw new ApiError(MESSAGES.suggestFailed, response.status)
+  }
+}
+
+// 로그인한 사람의 완료 아닌 할 일로 오늘 브리핑을 받는다. 본문은 없고 저장하지 않는다. (D-046, D-047)
+export async function briefingToday() {
+  let response
+  try {
+    response = await fetch(`${BASE_URL}/tasks/briefing`, { method: 'POST' })
+  } catch {
+    throw new ApiError(MESSAGES.network, 0)
+  }
+  if (response.status === 401) throw new ApiError(MESSAGES.sessionExpired, 401)
+  if (response.status === 503) throw new ApiError(MESSAGES.briefingUnavailable, 503)
+  if (!response.ok) throw new ApiError(MESSAGES.briefingFailed, response.status)
+  try {
+    return await response.json()
+  } catch {
+    throw new ApiError(MESSAGES.briefingFailed, response.status)
   }
 }
 
