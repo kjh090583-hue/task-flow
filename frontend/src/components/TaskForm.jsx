@@ -1,13 +1,24 @@
 import { useState } from 'react'
+import { useSuggest } from '../useSuggest'
+import { SuggestButton, SuggestNote } from './SuggestBar'
 import { DEFAULT_PRIORITY, PRIORITIES } from './statuses'
 
-function TaskForm({ onCreate }) {
+function TaskForm({ onCreate, onSuggest }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState(DEFAULT_PRIORITY)
   const [dueDate, setDueDate] = useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  // AI 제안은 입력란만 채운다. 저장은 아래 [저장] 버튼이 한다. (D-044)
+  const suggest = useSuggest(onSuggest)
+
+  function handleSuggest() {
+    suggest.suggest({ title, description }, (suggestion) => {
+      setPriority(suggestion.priority)
+      setDueDate(suggestion.due_date ?? '')
+    })
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -24,6 +35,7 @@ function TaskForm({ onCreate }) {
       setDescription('')
       setPriority(DEFAULT_PRIORITY)
       setDueDate('')
+      suggest.reset()
     } catch (error) {
       // 실패하면 입력을 남긴다. (D-021)
       setMessage(error.message)
@@ -63,6 +75,8 @@ function TaskForm({ onCreate }) {
       <button type="submit" disabled={saving}>
         저장
       </button>
+      <SuggestButton busy={suggest.busy} onClick={handleSuggest} />
+      <SuggestNote reason={suggest.reason} error={suggest.error} />
       {message && <p role="alert">{message}</p>}
     </form>
   )

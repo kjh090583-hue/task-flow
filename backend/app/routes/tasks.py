@@ -1,9 +1,10 @@
 import sqlite3
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import auth, db
-from ..schemas import StatusUpdate, Task, TaskCreate
+from .. import auth, db, suggest
+from ..schemas import StatusUpdate, SuggestRequest, Suggestion, Task, TaskCreate
 
 # 모든 Task 요청은 로그인이 필요하다. 로그인하지 않았으면 401. (D-033)
 router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(auth.current_user)])
@@ -27,6 +28,17 @@ def create_task(body: TaskCreate, user: dict = Depends(auth.current_user)):
         return db.create_task(body.title, body.description, user["id"], body.priority, body.due_date)
     except sqlite3.Error:
         raise _storage_error()
+
+
+@router.post("/suggest", response_model=Suggestion)
+def suggest_task(body: SuggestRequest):
+    # 제안만 돌려준다. DB 는 열지 않는다. (D-044)
+    try:
+        return suggest.suggest_task(body.title, body.description, date.today())
+    except suggest.SuggestUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+    except suggest.SuggestFailed:
+        raise HTTPException(status_code=502, detail="제안 실패")
 
 
 @router.patch("/{task_id}/status", response_model=Task)

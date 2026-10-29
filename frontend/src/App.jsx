@@ -8,6 +8,7 @@ import {
   logout,
   MESSAGES,
   register,
+  suggestTask,
   updateStatus,
   updateTask,
 } from './api'
@@ -144,6 +145,16 @@ function App() {
     }
   }
 
+  // 제안만 받아 돌려준다. 저장하지 않으므로 목록은 그대로이다. 로그인이 만료되면(401) 로그인 화면으로 돌아간다. (D-044)
+  async function handleSuggest(input) {
+    try {
+      return await suggestTask(input)
+    } catch (error) {
+      if (error.status === 401) loseLogin(error)
+      throw error
+    }
+  }
+
   // 성공 응답을 받은 뒤에만 카드의 상태를 바꾼다. 카드가 없으면(404) 목록을 다시 불러온다. (D-005)
   // 카드가 사라지면 카드 아래 안내도 함께 사라지므로, 이 경우의 안내는 보드 위에 보인다. (D-027)
   // 로그인이 만료되면(401) 로그인 화면으로 돌아간다.
@@ -226,7 +237,7 @@ function App() {
         <h2>내 Task 보드</h2>
         <p>현재 로그인한 사용자의 Task 만 표시됩니다.</p>
       </div>
-      <TaskForm onCreate={handleCreate} />
+      <TaskForm onCreate={handleCreate} onSuggest={handleSuggest} />
       {notice && (
         <p className="notice" role="alert">
           {notice}
@@ -250,6 +261,7 @@ function App() {
             onStatusChange={handleStatusChange}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
+            onSuggest={handleSuggest}
           />
         </>
       )}
