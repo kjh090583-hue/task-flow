@@ -268,6 +268,21 @@ class WeekPlanTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["days"], [at(0, a), at(1, b)])
 
+    def test_out_of_rule_priority_in_the_db_does_not_break_the_board_or_the_plan(self):
+        # 우선순위가 규칙 밖인 값이 API 를 거치지 않고 DB 에 들어간 경우. 보드와 계획은 그 값을 보통으로 보고 계속 동작한다. (D-048)
+        from app import db
+
+        a, b = self.add("일", priority="HIGH"), self.add("둘")
+        with sqlite3.connect(db.DB_PATH) as conn:
+            conn.execute("PRAGMA ignore_check_constraints = ON")
+            conn.execute("UPDATE tasks SET priority = ? WHERE id = ?", ("URGENT", b))
+        board = self.client.get("/tasks")
+        self.assertEqual(board.status_code, 200, board.text)
+        self.assertEqual({task["id"]: task["priority"] for task in board.json()}, {a: "HIGH", b: "NORMAL"})
+        response = self.week(plan([at(0, a), at(1, b)]))
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual({task["id"]: task["priority"] for task in self.sent("tasks")}, {a: "HIGH", b: "NORMAL"})
+
     # ---- 안 바뀌는 것
 
     def test_requires_login(self):
