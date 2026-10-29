@@ -562,3 +562,25 @@ code {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* 이번 주 계획: 요일별 표 (D-048). [오늘 브리핑]의 카드 스타일을 그대로 쓰고 표만 더한다. */
+.weekplan-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.weekplan-table th,
+.weekplan-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.weekplan-table th {
+  width: 1%;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--text-h);
+}

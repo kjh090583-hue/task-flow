@@ -12,6 +12,7 @@ import {
   suggestTask,
   updateStatus,
   updateTask,
+  weekPlanToday,
 } from './api'
 import AuthForm from './components/AuthForm'
 import Board from './components/Board'
@@ -19,6 +20,7 @@ import BriefingCard from './components/BriefingCard'
 import Header from './components/Header'
 import Summary from './components/Summary'
 import TaskForm from './components/TaskForm'
+import WeekPlanCard from './components/WeekPlanCard'
 
 function App() {
   // 로그인한 사용자. 없으면 로그인 화면을 보인다. (D-033)
@@ -167,6 +169,16 @@ function App() {
     }
   }
 
+  // 이번 주 계획만 받아 돌려준다. 저장하지 않으므로 목록은 그대로이다. 로그인이 만료되면(401) 로그인 화면으로 돌아간다. (D-048)
+  async function handleWeekPlan() {
+    try {
+      return await weekPlanToday()
+    } catch (error) {
+      if (error.status === 401) loseLogin(error)
+      throw error
+    }
+  }
+
   // 성공 응답을 받은 뒤에만 카드의 상태를 바꾼다. 카드가 없으면(404) 목록을 다시 불러온다. (D-005)
   // 카드가 사라지면 카드 아래 안내도 함께 사라지므로, 이 경우의 안내는 보드 위에 보인다. (D-027)
   // 로그인이 만료되면(401) 로그인 화면으로 돌아간다.
@@ -251,6 +263,7 @@ function App() {
       </div>
       <TaskForm onCreate={handleCreate} onSuggest={handleSuggest} />
       <BriefingCard tasks={tasks} onBriefing={handleBriefing} />
+      <WeekPlanCard tasks={tasks} onWeekPlan={handleWeekPlan} />
       {notice && (
         <p className="notice" role="alert">
           {notice}

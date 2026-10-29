@@ -15,6 +15,9 @@ export const MESSAGES = {
   briefingUnavailable: '지금은 브리핑을 쓸 수 없습니다',
   briefingFailed: '브리핑을 받지 못했습니다',
   briefingEmpty: '오늘은 비어 있어요',
+  weekplan: '나누는 중…',
+  weekplanUnavailable: '지금은 이번 주 계획을 쓸 수 없습니다',
+  weekplanFailed: '이번 주 계획을 받지 못했습니다',
 }
 
 export class ApiError extends Error {
@@ -149,6 +152,24 @@ export async function briefingToday() {
     return await response.json()
   } catch {
     throw new ApiError(MESSAGES.briefingFailed, response.status)
+  }
+}
+
+// 로그인한 사람의 완료 아닌 할 일을 오늘부터 7일에 나눈 계획을 받는다. 본문은 없고 저장하지 않는다. (D-048)
+export async function weekPlanToday() {
+  let response
+  try {
+    response = await fetch(`${BASE_URL}/tasks/weekplan`, { method: 'POST' })
+  } catch {
+    throw new ApiError(MESSAGES.network, 0)
+  }
+  if (response.status === 401) throw new ApiError(MESSAGES.sessionExpired, 401)
+  if (response.status === 503) throw new ApiError(MESSAGES.weekplanUnavailable, 503)
+  if (!response.ok) throw new ApiError(MESSAGES.weekplanFailed, response.status)
+  try {
+    return await response.json()
+  } catch {
+    throw new ApiError(MESSAGES.weekplanFailed, response.status)
   }
 }
 
