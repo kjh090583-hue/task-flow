@@ -23,6 +23,11 @@ def _load_env_file(path: Path) -> None:
 _load_env_file(ENV_PATH)
 
 
+def anthropic_api_key() -> str:
+    # AI 제안용 키. 없으면 빈 문자열이고 제안 요청만 503 이다. 앞뒤 공백과 줄바꿈은 지운다. 값은 출력하지 않는다. (D-044)
+    return os.environ.get("ANTHROPIC_API_KEY", "").strip()
+
+
 def session_secret() -> bytes:
     value = os.environ.get("SESSION_SECRET", "")
     if not value:
