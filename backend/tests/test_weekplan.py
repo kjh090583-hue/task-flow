@@ -2,12 +2,15 @@
 import json
 import logging
 import os
+import sqlite3
 import unittest
 from datetime import date, timedelta
 from unittest.mock import patch
 
 import anthropic
 from fastapi.testclient import TestClient
+
+from app import briefing
 
 from .helpers import get_app
 from .test_suggest import KEY, PASSWORD, fake_client, sdk_error
@@ -93,8 +96,11 @@ class WeekPlanTest(unittest.TestCase):
         a = self.add("일")
         self.week(plan([at(0, a)]))
         call = self.calls[0]
-        self.assertEqual((call["model"], call["max_tokens"], call["thinking"]), ("claude-haiku-5-5", 500, {"type": "disabled"}))
-        self.assertEqual((self.inits[0]["timeout"], self.inits[0]["max_retries"]), (20, 0))
+        self.assertEqual(
+            (call["model"], call["max_tokens"], call["thinking"]),
+            (briefing.MODEL, briefing.MAX_TOKENS, {"type": "disabled"}),
+        )
+        self.assertEqual((self.inits[0]["timeout"], self.inits[0]["max_retries"]), (briefing.TIMEOUT_SECONDS, 0))
         self.assertEqual(self.sent("week"), [day(n) for n in range(7)])
         self.assertIn(f"<today>{day(0)}</today>", call["messages"][0]["content"])
 
@@ -240,6 +246,27 @@ class WeekPlanTest(unittest.TestCase):
         self.add("일")
         response = self.week(error=sdk_error(anthropic.BadRequestError, 400))
         self.assertEqual((response.status_code, response.json()["detail"]), (502, "계획 실패"))
+
+    # ---- 저장소 오류 · DB 에 규칙 밖 값이 있을 때
+
+    def test_storage_error_is_500_without_calling_the_model(self):
+        client_class, calls, inits = fake_client(plan([at(0, 1)]))
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": KEY}), patch("anthropic.Anthropic", client_class):
+            with patch("app.db.list_tasks", side_effect=sqlite3.Error("테스트용 오류")):
+                response = self.client.post("/tasks/weekplan")
+        self.assertEqual((response.status_code, response.json()["detail"], calls, inits), (500, "저장소 오류", [], []))
+
+    def test_out_of_calendar_due_date_in_the_db_does_not_break_the_board_or_the_plan(self):
+        # 형식(숫자 모양)은 통과하지만 달력에 없는 마감일이 API 를 거치지 않고 DB 에 들어간 경우.
+        from app import db
+
+        a, b = self.add("일", due_date="2026-11-01"), self.add("둘")
+        with sqlite3.connect(db.DB_PATH) as conn:
+            conn.execute("UPDATE tasks SET due_date = ? WHERE id = ?", ("2026-99-99", a))
+        self.assertEqual(self.client.get("/tasks").status_code, 200)
+        response = self.week(plan([at(0, a), at(1, b)]))
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["days"], [at(0, a), at(1, b)])
 
     # ---- 안 바뀌는 것
 

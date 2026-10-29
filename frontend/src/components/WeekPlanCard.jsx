@@ -9,7 +9,7 @@ function dayLabel(text) {
   return `${text.slice(5)} (${WEEKDAYS[new Date(year, month - 1, day).getDay()]})`
 }
 
-// 서버가 준 id 로 현재 목록에서 제목을 찾는다. 그 사이 삭제하거나 완료한 카드(못 찾는 id)는 뺀다. 할 일이 하나도 없는 날은 줄을 뺀다.
+// 서버가 준 id 로 현재 목록에서 제목을 찾는다. 그 사이 삭제한 카드(못 찾는 id)는 뺀다. 완료로 바뀐 카드는 목록에 남아 있으면 그대로 보인다. (D-048) 할 일이 하나도 없는 날은 줄을 뺀다.
 function rowsOf(tasks, days) {
   const byId = new Map(tasks.map((task) => [task.id, task.title]))
   return days
