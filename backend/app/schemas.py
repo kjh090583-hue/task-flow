@@ -120,6 +120,27 @@ class Briefing(BaseModel):
         return _check_sentence(value, "응원")
 
 
+class WeekDay(BaseModel):
+    # 하루의 계획. 날짜가 7일 안인지와 id 가 보낸 것인지는 weekplan.py 가 검사한다. (D-048)
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    ids: list[StrictInt]
+
+
+class WeekPlan(BaseModel):
+    # AI 가 만든 이번 주 계획. 저장하지 않으며, AI 의 답 검사와 응답에 같이 쓴다. (D-048)
+    model_config = ConfigDict(extra="forbid")
+
+    days: list[WeekDay]
+    note: str
+
+    @field_validator("note")
+    @classmethod
+    def note_not_blank(cls, value: str) -> str:
+        return _check_sentence(value, "조언")
+
+
 class Task(BaseModel):
     id: int
     title: str
