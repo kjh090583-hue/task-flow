@@ -135,6 +135,7 @@ code {
 /* 머리글 · 보드 제목 · 요약 · 배지 (D-039) */
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
@@ -145,6 +146,11 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.brand h1,
+.brand p {
+  white-space: nowrap;
 }
 
 .brand p,
@@ -168,10 +174,17 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.user-bar button {
+  white-space: nowrap;
 }
 
 .user-chip {
   display: grid;
+  min-width: 0;
   padding: 4px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -187,6 +200,9 @@ code {
 .user-chip strong {
   font-size: 13px;
   color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .board-title {
@@ -290,6 +306,12 @@ code {
   font-size: 12px;
 }
 
+.chip,
+.badge,
+.due {
+  white-space: nowrap;
+}
+
 .chip {
   padding: 0 8px;
   border: 1px solid var(--border);
@@ -340,6 +362,11 @@ code {
   .summary {
     grid-template-columns: 1fr;
   }
+
+  /* 좁은 폭: 등록 폼의 제목 · 설명은 한 줄씩 쓴다. */
+  .task-form input:not(.due-input) {
+    flex-basis: 100%;
+  }
 }
 
 .auth-form {
@@ -378,13 +405,15 @@ code {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr): 공백 없는 긴 제목이 열을 늘리지 못하게 한다. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   padding: 0 16px 16px;
   text-align: left;
 }
 
 .column {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
@@ -395,18 +424,25 @@ code {
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
 .card {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px;
+  overflow-wrap: anywhere;
 }
 
 .card {
   display: grid;
   gap: 6px;
+}
+
+.card select {
+  max-width: 100%;
 }
 
 .card p {
@@ -423,7 +459,19 @@ code {
 
 .card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.card-actions button {
+  white-space: nowrap;
+}
+
+/* 좁은 폭: 열을 한 줄로 쌓는다. 기본 규칙(.board)보다 뒤에 있어야 적용된다. */
+@media (max-width: 720px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .card [role='alert'] {
