@@ -66,8 +66,8 @@ class BriefingUnavailable(Exception):
     """AI 를 쓸 수 없다. 503. 메시지가 사용자에게 가는 안내이다."""
 
 
-def call_model(system: str, user: str) -> str:
-    """AI 를 한 번 불러 글 답을 돌려준다. 호출 실패는 BriefingUnavailable · BriefingFailed 로 바꾼다."""
+def call_model(system: str, user: str, max_tokens: int = MAX_TOKENS) -> str:
+    """AI 를 한 번 불러 글 답을 돌려준다. 호출 실패는 BriefingUnavailable · BriefingFailed 로 바꾼다. 출력 한도는 기본 MAX_TOKENS 이다."""
     key = config.anthropic_api_key()
     if not key:
         raise BriefingUnavailable(KEY_OFF)
@@ -76,7 +76,7 @@ def call_model(system: str, user: str) -> str:
     try:
         response = client.messages.create(
             model=MODEL,
-            max_tokens=MAX_TOKENS,
+            max_tokens=max_tokens,
             thinking={"type": "disabled"},
             system=system,
             messages=[{"role": "user", "content": user}],

@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 
+from . import rules
+
 Status = Literal["TODO", "IN_PROGRESS", "DONE"]
 Priority = Literal["LOW", "NORMAL", "HIGH"]
 
@@ -118,6 +120,31 @@ class Briefing(BaseModel):
     @classmethod
     def cheer_not_blank(cls, value: str) -> str:
         return _check_sentence(value, "응원")
+
+
+class CommandRequest(BaseModel):
+    # 한 문장으로 시키기의 요청. 비었거나 길면 422 이고 이유는 rules.py 가 정한다. (D-049)
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def text_in_rules(cls, value: str) -> str:
+        return rules.check_command_text(value)
+
+
+class CommandAction(BaseModel):
+    # 제안 한 줄. 안 쓰는 값은 null 이다. 저장하지 않으며, 응답 모양으로만 쓴다. (D-049)
+    kind: Literal["add", "due", "done"]
+    id: int | None
+    title: str | None
+    priority: Priority | None
+    due_date: str | None
+
+
+class CommandResult(BaseModel):
+    # 제안한 action 목록과, 못 알아들었을 때 되묻는 한 문장. 둘 중 하나만 채워진다. (D-049)
+    actions: list[CommandAction]
+    ask: str | None
 
 
 class Task(BaseModel):
