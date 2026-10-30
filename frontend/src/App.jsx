@@ -16,6 +16,7 @@ import {
 import AuthForm from './components/AuthForm'
 import Board from './components/Board'
 import BriefingCard from './components/BriefingCard'
+import CommandCard from './components/CommandCard'
 import Header from './components/Header'
 import Summary from './components/Summary'
 import TaskForm from './components/TaskForm'
@@ -251,6 +252,7 @@ function App() {
       </div>
       <TaskForm onCreate={handleCreate} onSuggest={handleSuggest} />
       <BriefingCard tasks={tasks} onBriefing={handleBriefing} />
+      <CommandCard tasks={tasks} onChanged={() => syncTasks((current) => current)} onLoseLogin={loseLogin} />
       {notice && (
         <p className="notice" role="alert">
           {notice}

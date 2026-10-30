@@ -15,6 +15,9 @@ export const MESSAGES = {
   briefingUnavailable: '지금은 브리핑을 쓸 수 없습니다',
   briefingFailed: '브리핑을 받지 못했습니다',
   briefingEmpty: '오늘은 비어 있어요',
+  commanding: '알아듣는 중…',
+  commandUnavailable: '지금은 시킬 수 없습니다',
+  commandFailed: '알아듣지 못했습니다',
 }
 
 export class ApiError extends Error {
@@ -149,6 +152,38 @@ export async function briefingToday() {
     return await response.json()
   } catch {
     throw new ApiError(MESSAGES.briefingFailed, response.status)
+  }
+}
+
+// 한 문장을 보내 할 일 바꾸기 제안(actions)이나 되묻는 말(ask)만 받는다. 저장하지 않는다. (D-049)
+// 422 는 서버가 준 이유를 그대로 쓰고, 503 · 502 는 정해 둔 문구를 쓴다.
+export async function commandText(text) {
+  let response
+  try {
+    response = await fetch(`${BASE_URL}/tasks/command`, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ text }),
+    })
+  } catch {
+    throw new ApiError(MESSAGES.network, 0)
+  }
+  if (response.status === 401) throw new ApiError(MESSAGES.sessionExpired, 401)
+  if (response.status === 503) throw new ApiError(MESSAGES.commandUnavailable, 503)
+  if (response.status === 422) {
+    let detail = ''
+    try {
+      detail = readDetail((await response.json()).detail)
+    } catch {
+      // 본문을 읽지 못하면 아래 기본 문구를 쓴다.
+    }
+    throw new ApiError(detail || MESSAGES.commandFailed, 422)
+  }
+  if (!response.ok) throw new ApiError(MESSAGES.commandFailed, response.status)
+  try {
+    return await response.json()
+  } catch {
+    throw new ApiError(MESSAGES.commandFailed, response.status)
   }
 }
 
