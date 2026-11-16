@@ -33,3 +33,11 @@ def session_secret() -> bytes:
     if not value:
         raise RuntimeError("SESSION_SECRET 이 없습니다. backend/.env 를 확인하세요. (backend/.env.example 참고)")
     return value.encode("utf-8")
+
+
+def database_url() -> str:
+    # PostgreSQL 접속 주소. 환경 변수가 먼저이고 없으면 backend/.env 를 본다. 비어 있으면 시작을 거부한다. 값은 출력하지 않는다. (D-050)
+    value = os.environ.get("DATABASE_URL", "").strip()
+    if not value:
+        raise RuntimeError("DATABASE_URL 이 없습니다. backend/.env 를 확인하세요. (backend/.env.example 참고)")
+    return value

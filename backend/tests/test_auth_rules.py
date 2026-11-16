@@ -1,15 +1,14 @@
 """가입 · 로그인 입력 규칙, 비밀번호와 세션의 저장 방식, 입력 검사를 확인한다. (D-033 ~ D-038)"""
 import os
-import sqlite3
 import unittest
 from datetime import datetime, timedelta, timezone
 
+import psycopg
 from fastapi.testclient import TestClient
 
 from .helpers import get_app
 
 PASSWORD = "Passw0rd!long-enough"
-DB = os.environ["TASKFLOW_DB"]
 app = None
 
 
@@ -19,11 +18,9 @@ def setUpModule():
 
 
 def query(sql, *args):
-    conn = sqlite3.connect(DB)
-    rows = conn.execute(sql, args).fetchall()
-    conn.commit()
-    conn.close()
-    return rows
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        cursor = conn.execute(sql, args)
+        return cursor.fetchall() if cursor.description else []
 
 
 class AuthRulesTest(unittest.TestCase):
@@ -60,7 +57,7 @@ class AuthRulesTest(unittest.TestCase):
 
     def test_password_is_stored_only_as_argon2_hash(self):
         self.register("hash@test.com")
-        (stored,) = query("SELECT password_hash FROM users WHERE email = ?", "hash@test.com")[0]
+        (stored,) = query("SELECT password_hash FROM users WHERE email = %s", "hash@test.com")[0]
         self.assertTrue(stored.startswith("$argon2"))
         self.assertNotIn(PASSWORD, stored)
 
@@ -77,14 +74,14 @@ class AuthRulesTest(unittest.TestCase):
     def test_expired_session_is_401(self):
         self.register("expire@test.com")
         past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(timespec="seconds")
-        query("UPDATE sessions SET expires_at = ? WHERE user_id = (SELECT id FROM users WHERE email = ?)", past, "expire@test.com")
+        query("UPDATE sessions SET expires_at = %s WHERE user_id = (SELECT id FROM users WHERE email = %s)", past, "expire@test.com")
         self.assertEqual(self.client.get("/tasks").status_code, 401)
 
     def test_session_is_extended_by_activity(self):
         self.register("slide@test.com")
         soon = (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat(timespec="seconds")
-        sql = "SELECT expires_at FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = ?)"
-        query("UPDATE sessions SET expires_at = ? WHERE user_id = (SELECT id FROM users WHERE email = ?)", soon, "slide@test.com")
+        sql = "SELECT expires_at FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = %s)"
+        query("UPDATE sessions SET expires_at = %s WHERE user_id = (SELECT id FROM users WHERE email = %s)", soon, "slide@test.com")
         self.assertEqual(self.client.get("/tasks").status_code, 200)
         (new_expiry,) = query(sql, "slide@test.com")[0]
         self.assertGreater(datetime.fromisoformat(new_expiry), datetime.now(timezone.utc) + timedelta(minutes=20))

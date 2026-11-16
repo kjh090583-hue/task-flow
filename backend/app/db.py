@@ -1,10 +1,28 @@
 import os
-import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import psycopg
+from psycopg.rows import dict_row
+
+from . import config
+
+# 예전 SQLite 파일 경로. 앱은 더 쓰지 않고 migrations/env.py(alembic)만 쓴다. (D-050)
 DB_PATH = Path(os.environ.get("TASKFLOW_DB", Path(__file__).resolve().parent.parent / "taskflow.db"))
+
+# 저장소 오류를 가리키는 이름. 요청 처리부는 저장소 세부를 모르고 이 이름만 쓴다. (D-050)
+Error = psycopg.Error
+IntegrityError = psycopg.IntegrityError
+
+# 표는 supabase/schema.sql 이 만든다. 이 열 중 하나라도 없으면 시작하지 않는다. (D-031, D-036, D-050)
+REQUIRED_COLUMNS = {
+    "users": ("id", "email", "password_hash", "created_at"),
+    "sessions": ("id", "user_id", "token_hash", "expires_at", "created_at"),
+    "tasks": (
+        "id", "title", "description", "status", "created_at", "updated_at", "owner_id", "priority", "due_date",
+    ),
+}
 
 # 이전용 계정. 기존 Task 의 주인이고, 이 이메일로 처음 가입하는 사람이 인수한다. (D-037)
 MIGRATED_EMAIL = "migrated@test.com"
@@ -18,9 +36,8 @@ PRIORITIES = ("LOW", "NORMAL", "HIGH")
 
 @contextmanager
 def _connect():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")  # 연결마다 켜야 외래 키를 검사한다. (D-038)
+    # prepare_threshold=None: 트랜잭션 풀러(6543)에서도 쓸 수 있게 서버 측 준비 구문을 끈다.
+    conn = psycopg.connect(config.database_url(), row_factory=dict_row, prepare_threshold=None)
     try:
         yield conn
         conn.commit()
@@ -32,16 +49,23 @@ def _connect():
 
 
 def init_db() -> None:
-    # 표는 alembic 이 만든다. 마이그레이션하지 않은 DB 면 시작할 때 실패해서 조용히 어긋나지 않게 한다. (D-031, D-036)
+    # 표는 만들지 않는다. 열이 있는지만 확인해서 조용히 어긋나지 않게 한다. (D-031, D-036, D-050)
     with _connect() as conn:
-        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        task_columns = (
-            {col["name"] for col in conn.execute("PRAGMA table_info(tasks)")} if "tasks" in tables else set()
-        )
-    # owner_id(D-036)와 priority · due_date(D-041)가 있어야 마이그레이션한 DB 이다.
-    if not {"tasks", "users", "sessions"} <= tables or not {"owner_id", "priority", "due_date"} <= task_columns:
+        rows = conn.execute(
+            "SELECT table_name, column_name FROM information_schema.columns"
+            " WHERE table_schema = current_schema() AND table_name = ANY(%s)",
+            (list(REQUIRED_COLUMNS),),
+        ).fetchall()
+    present = {(row["table_name"], row["column_name"]) for row in rows}
+    missing = [
+        f"{table}.{column}"
+        for table, columns in REQUIRED_COLUMNS.items()
+        for column in columns
+        if (table, column) not in present
+    ]
+    if missing:
         raise RuntimeError(
-            "DB 가 아직 마이그레이션되지 않았습니다. backend 폴더에서 `uv run alembic upgrade head` 를 실행하세요."
+            f"DB 에 {', '.join(missing)} 이(가) 없습니다. backend 폴더에서 `uv run python supabase/apply_schema.py` 를 실행하세요."
         )
 
 
@@ -57,7 +81,7 @@ def _today() -> str:
     return date.today().isoformat()
 
 
-def _to_task(row: sqlite3.Row, today: str) -> dict:
+def _to_task(row: dict, today: str) -> dict:
     # 기한 초과는 저장하지 않고 응답할 때 계산한다: 마감일이 오늘보다 이전이고 완료가 아니다. (R-011, D-042)
     task = dict(row)
     due = task["due_date"]
@@ -79,7 +103,7 @@ def _sort_key(task: dict) -> tuple:
 
 def list_tasks(owner_id: int) -> list[dict]:
     with _connect() as conn:
-        rows = conn.execute("SELECT * FROM tasks WHERE owner_id = ?", (owner_id,)).fetchall()
+        rows = conn.execute("SELECT * FROM tasks WHERE owner_id = %s", (owner_id,)).fetchall()
     today = _today()
     return sorted((_to_task(row, today) for row in rows), key=_sort_key)
 
@@ -87,45 +111,44 @@ def list_tasks(owner_id: int) -> list[dict]:
 def create_task(title: str, description: str, owner_id: int, priority: str = "NORMAL", due_date: str | None = None) -> dict:
     now = _now()
     with _connect() as conn:
-        cursor = conn.execute(
+        row = conn.execute(
             "INSERT INTO tasks (title, description, status, priority, due_date, created_at, updated_at, owner_id) "
-            "VALUES (?, ?, 'TODO', ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, 'TODO', %s, %s, %s, %s, %s) RETURNING *",
             (title, description, priority, due_date, now, now, owner_id),
-        )
-        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        ).fetchone()
     return _to_task(row, _today())
 
 
 def update_status(task_id: int, status: str, owner_id: int) -> dict | None:
     with _connect() as conn:
         cursor = conn.execute(
-            "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
+            "UPDATE tasks SET status = %s, updated_at = %s WHERE id = %s AND owner_id = %s",
             (status, _now(), task_id, owner_id),
         )
         if cursor.rowcount == 0:
             return None
-        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        row = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     return _to_task(row, _today())
 
 
 def update_task(task_id: int, title: str, description: str, owner_id: int, extra: dict | None = None) -> dict | None:
     # extra 에는 요청에서 보낸 priority · due_date 만 들어 있다. 보내지 않은 값은 그대로 둔다. (D-041)
     extra = {key: value for key, value in (extra or {}).items() if key in ("priority", "due_date")}
-    assignments = "".join(f", {key} = ?" for key in extra)
+    assignments = "".join(f", {key} = %s" for key in extra)
     with _connect() as conn:
         cursor = conn.execute(
-            f"UPDATE tasks SET title = ?, description = ?, updated_at = ?{assignments} WHERE id = ? AND owner_id = ?",
+            f"UPDATE tasks SET title = %s, description = %s, updated_at = %s{assignments} WHERE id = %s AND owner_id = %s",
             (title, description, _now(), *extra.values(), task_id, owner_id),
         )
         if cursor.rowcount == 0:
             return None
-        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        row = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     return _to_task(row, _today())
 
 
 def delete_task(task_id: int, owner_id: int) -> bool:
     with _connect() as conn:
-        cursor = conn.execute("DELETE FROM tasks WHERE id = ? AND owner_id = ?", (task_id, owner_id))
+        cursor = conn.execute("DELETE FROM tasks WHERE id = %s AND owner_id = %s", (task_id, owner_id))
     return cursor.rowcount > 0
 
 
@@ -134,18 +157,17 @@ def delete_task(task_id: int, owner_id: int) -> bool:
 
 def get_user_by_email(email: str) -> dict | None:
     with _connect() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone()
     return dict(row) if row else None
 
 
 def create_user(email: str, password_hash: str) -> dict:
-    # 이미 있는 이메일이면 sqlite3.IntegrityError 가 난다.
+    # 이미 있는 이메일이면 IntegrityError 가 난다.
     with _connect() as conn:
-        cursor = conn.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+        row = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s) RETURNING *",
             (email, password_hash, _now()),
-        )
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        ).fetchone()
     return dict(row)
 
 
@@ -153,7 +175,7 @@ def claim_user(user_id: int, password_hash: str) -> bool:
     # 비밀번호가 아직 없는 계정에만 한 번 정해 줄 수 있다. 이미 정해졌으면 False.
     with _connect() as conn:
         cursor = conn.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash IS NULL",
+            "UPDATE users SET password_hash = %s WHERE id = %s AND password_hash IS NULL",
             (password_hash, user_id),
         )
     return cursor.rowcount == 1
@@ -162,14 +184,14 @@ def claim_user(user_id: int, password_hash: str) -> bool:
 def create_session(user_id: int, token_hash: str, expires_at: str) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO sessions (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO sessions (user_id, token_hash, expires_at, created_at) VALUES (%s, %s, %s, %s)",
             (user_id, token_hash, expires_at, _now()),
         )
 
 
 def delete_expired_sessions() -> None:
     with _connect() as conn:
-        conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (_now(),))
+        conn.execute("DELETE FROM sessions WHERE expires_at <= %s", (_now(),))
 
 
 def get_session_user(token_hash: str) -> dict | None:
@@ -177,22 +199,22 @@ def get_session_user(token_hash: str) -> dict | None:
     with _connect() as conn:
         row = conn.execute(
             "SELECT s.id AS session_id, s.expires_at, u.id, u.email "
-            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
+            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = %s",
             (token_hash,),
         ).fetchone()
         if row is None:
             return None
         if row["expires_at"] <= _now():
-            conn.execute("DELETE FROM sessions WHERE id = ?", (row["session_id"],))
+            conn.execute("DELETE FROM sessions WHERE id = %s", (row["session_id"],))
             return None
     return dict(row)
 
 
 def extend_session(session_id: int, expires_at: str) -> None:
     with _connect() as conn:
-        conn.execute("UPDATE sessions SET expires_at = ? WHERE id = ?", (expires_at, session_id))
+        conn.execute("UPDATE sessions SET expires_at = %s WHERE id = %s", (expires_at, session_id))
 
 
 def delete_session(session_id: int) -> None:
     with _connect() as conn:
-        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        conn.execute("DELETE FROM sessions WHERE id = %s", (session_id,))

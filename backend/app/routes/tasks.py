@@ -1,4 +1,3 @@
-import sqlite3
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +26,7 @@ def _storage_error() -> HTTPException:
 def list_tasks(user: dict = Depends(auth.current_user)):
     try:
         return db.list_tasks(user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
 
 
@@ -35,7 +34,7 @@ def list_tasks(user: dict = Depends(auth.current_user)):
 def create_task(body: TaskCreate, user: dict = Depends(auth.current_user)):
     try:
         return db.create_task(body.title, body.description, user["id"], body.priority, body.due_date)
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
 
 
@@ -55,7 +54,7 @@ def briefing_today(user: dict = Depends(auth.current_user)):
     # 로그인한 사람의 완료 아닌 Task 로 브리핑만 돌려준다. DB 는 읽기만 한다. (D-046)
     try:
         tasks = db.list_tasks(user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     try:
         return briefing.make_briefing(tasks, date.today())
@@ -70,7 +69,7 @@ def command_text(body: CommandRequest, user: dict = Depends(auth.current_user)):
     # 로그인한 사람의 완료 아닌 Task 와 한 문장으로 제안만 돌려준다. DB 는 읽기만 한다. (D-049)
     try:
         tasks = db.list_tasks(user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     try:
         return command.make_command(tasks, body.text, date.today())
@@ -84,7 +83,7 @@ def command_text(body: CommandRequest, user: dict = Depends(auth.current_user)):
 def update_status(task_id: int, body: StatusUpdate, user: dict = Depends(auth.current_user)):
     try:
         task = db.update_status(task_id, body.status, user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     if task is None:
         raise HTTPException(status_code=404, detail="대상 카드가 없습니다")
@@ -97,7 +96,7 @@ def update_task(task_id: int, body: TaskCreate, user: dict = Depends(auth.curren
     sent = {key: getattr(body, key) for key in ("priority", "due_date") if key in body.model_fields_set}
     try:
         task = db.update_task(task_id, body.title, body.description, user["id"], sent)
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     if task is None:
         raise HTTPException(status_code=404, detail="대상 카드가 없습니다")
@@ -108,7 +107,7 @@ def update_task(task_id: int, body: TaskCreate, user: dict = Depends(auth.curren
 def delete_task(task_id: int, user: dict = Depends(auth.current_user)):
     try:
         deleted = db.delete_task(task_id, user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     if not deleted:
         raise HTTPException(status_code=404, detail="대상 카드가 없습니다")

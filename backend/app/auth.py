@@ -1,7 +1,6 @@
 import hashlib
 import hmac
 import secrets
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request, Response
@@ -78,7 +77,7 @@ def current_user(request: Request, response: Response) -> dict:
         if user is None:
             raise HTTPException(status_code=401, detail=NOT_LOGGED_IN)
         db.extend_session(user["session_id"], _expires_at())
-    except sqlite3.Error:
+    except db.Error:
         raise HTTPException(status_code=500, detail="저장소 오류")
     _set_cookie(response, token)
     return user

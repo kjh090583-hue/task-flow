@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import psycopg
+
 BACKEND = Path(__file__).resolve().parent.parent
 
 OLD_TASKS = """
@@ -58,13 +60,27 @@ def content(db_path):
 _app = None
 
 
+def _seed_migrated_account():
+    """이전용 계정(D-037)과 옛 카드 두 장을 넣는다. 이 계정으로 처음 가입하는 사람이 카드를 인수하는 규칙을 시험한다."""
+    now = "2026-10-20T00:00:00+00:00"
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        user_id = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES ('migrated@test.com', NULL, %s) RETURNING id",
+            (now,),
+        ).fetchone()[0]
+        for title, status in (("옛 카드 1", "TODO"), ("옛 카드 2", "DONE")):
+            conn.execute(
+                "INSERT INTO tasks (title, description, status, created_at, updated_at, owner_id)"
+                " VALUES (%s, '', %s, %s, %s, %s)",
+                (title, status, now, now, user_id),
+            )
+
+
 def get_app():
-    """이전 전 모양의 DB 를 만들고 alembic 으로 이전한 뒤 앱을 돌려준다. 한 번만 한다."""
+    """시험용 스키마에 이전용 계정을 한 번 넣고 앱을 돌려준다."""
     global _app
     if _app is None:
-        db_path = os.environ["TASKFLOW_DB"]
-        make_old_db(db_path, [("옛 카드 1", "", "TODO"), ("옛 카드 2", "", "DONE")])
-        alembic(db_path, "upgrade", "head")
+        _seed_migrated_account()
         from app.main import app  # 환경 변수를 정한 뒤에 가져온다
 
         _app = app

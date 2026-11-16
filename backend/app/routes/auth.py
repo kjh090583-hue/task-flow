@@ -1,5 +1,3 @@
-import sqlite3
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from .. import auth, db
@@ -23,7 +21,7 @@ def register(body: RegisterRequest, response: Response):
         if existing is None:
             try:
                 user = db.create_user(body.email, password_hash)
-            except sqlite3.IntegrityError:
+            except db.IntegrityError:
                 raise HTTPException(status_code=409, detail=ALREADY_REGISTERED)
         elif existing["email"] == db.MIGRATED_EMAIL and existing["password_hash"] is None:
             # 인수되지 않은 이전용 계정: 처음 가입하는 사람이 비밀번호를 정해 계정과 기존 Task 를 받는다. (D-037)
@@ -33,7 +31,7 @@ def register(body: RegisterRequest, response: Response):
         else:
             raise HTTPException(status_code=409, detail=ALREADY_REGISTERED)
         auth.start_session(response, user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     return user
 
@@ -49,7 +47,7 @@ def login(body: LoginRequest, response: Response):
         if not auth.verify_password(body.password, user["password_hash"]):
             raise HTTPException(status_code=401, detail=LOGIN_FAILED)
         auth.start_session(response, user["id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     return user
 
@@ -58,7 +56,7 @@ def login(body: LoginRequest, response: Response):
 def logout(response: Response, user: dict = Depends(auth.current_user)):
     try:
         db.delete_session(user["session_id"])
-    except sqlite3.Error:
+    except db.Error:
         raise _storage_error()
     auth.clear_cookie(response)
 
