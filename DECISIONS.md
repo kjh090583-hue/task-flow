@@ -337,7 +337,7 @@ PRD 의 열린 질문이 걸린 내용은 결정하지 않았다. 그 질문이 
 ## D-050 저장소를 PostgreSQL 로 옮긴다 (R-018, D-002 를 대체한다)
 - 결정:
   - 저장소는 SQLite 파일 대신 PostgreSQL 이다. 연결은 `psycopg` 로 하고, 접속 주소는 `DATABASE_URL` 이다. 환경 변수가 먼저이고 없으면 `backend/.env` 를 보며, 비어 있으면 API 가 시작하지 않는다. 값은 출력하지 않는다.
-  - 표는 `backend/supabase/schema.sql` 이 만든다. `backend/supabase/apply_schema.py` 로 한 번 적용하고, `db_check.py` 로 읽기만 하며 확인한다. alembic 은 쓰지 않는다. 날짜와 시각은 글자(text)로 그대로 둔다. 표마다 RLS 를 켠다.
+  - 표는 `backend/supabase/schema.sql` 이 만든다. `backend/supabase/apply_schema.py` 로 한 번 적용하고, `db_check.py` 로 읽기만 하며 확인한다. alembic 은 더 쓰지 않고, `backend/migrations/` 는 예전 SQLite 파일용으로 지우지 않고 남겨 둔다. 날짜와 시각은 글자(text)로 그대로 둔다. 표마다 RLS 를 켠다.
   - API 가 시작할 때 필요한 표 · 열이 없으면 실패한다(D-031, D-036 의 방식을 이어 간다).
   - 기존 SQLite 파일의 데이터는 옮기지 않고 새로 시작한다.
   - API 의 모양과 업무 규칙은 바꾸지 않는다. 시험은 `DATABASE_URL` 이 가리키는 시험용 DB 에서 같은 결과로 통과해야 한다.
